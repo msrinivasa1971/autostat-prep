@@ -20,6 +20,13 @@ Resolver ordering is significant:
 from typing import List
 
 from app.resolvers.base_resolver import BaseResolver
+from app.resolvers.encoding_resolvers import (
+    BooleanResolver,
+    LikertScaleResolver,
+    MissingValueResolver,
+    NumericTextResolver,
+    PercentResolver,
+)
 from app.resolvers.structural_resolvers import (
     BlankColumnResolver,
     BlankRowResolver,
@@ -43,4 +50,9 @@ def get_default_resolvers() -> List[BaseResolver]:
         BlankRowResolver(),
         HeaderNormalizerResolver(),
         DuplicateColumnResolver(),
+        BooleanResolver(),
+        LikertScaleResolver(),
+        PercentResolver(),
+        NumericTextResolver(),
+        MissingValueResolver(),
     ]

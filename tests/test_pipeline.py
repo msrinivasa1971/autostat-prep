@@ -193,6 +193,13 @@ from app.resolvers.structural_resolvers import (
     DuplicateColumnResolver,
     HeaderNormalizerResolver,
 )
+from app.resolvers.encoding_resolvers import (
+    BooleanResolver,
+    LikertScaleResolver,
+    MissingValueResolver,
+    NumericTextResolver,
+    PercentResolver,
+)
 from app.resolvers.resolver_engine import ResolverEngine
 from app.resolvers.resolver_registry import get_default_resolvers
 
@@ -385,10 +392,239 @@ def test_pipeline_renames_normalization_created_duplicates() -> None:
 # ---------------------------------------------------------------------------
 
 def test_engine_returns_empty_log_for_clean_data() -> None:
+    # Note: "clean" data may still have numeric strings that need conversion
     df = pd.DataFrame({"id": ["1", "2"], "score": ["5", "4"]})
     engine = ResolverEngine(get_default_resolvers())
     _, log = engine.run(df)
-    assert log == []
+    # NumericTextResolver will fire on numeric strings
+    assert len(log) == 1
+    assert log[0]["resolver"] == "NumericTextResolver"
+    assert log[0]["affected_columns"] == ["score"]
+
+
+# ===========================================================================
+# Sprint-3 — Encoding Resolver tests
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# BooleanResolver
+# ---------------------------------------------------------------------------
+
+def test_boolean_resolver_detects_boolean_column() -> None:
+    df = pd.DataFrame({"agree": ["Yes", "No", "Yes"]})
+    assert BooleanResolver().detect(df) is True
+
+
+def test_boolean_resolver_converts_to_numeric() -> None:
+    df = pd.DataFrame({"agree": ["Yes", "No", "True", "False", "Y", "N"]})
+    result = BooleanResolver().apply(df)
+    expected = [1, 0, 1, 0, 1, 0]
+    assert result["agree"].tolist() == expected
+
+
+def test_boolean_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({"agree": ["Yes", "No"], "score": ["5", "4"]})
+    affected = BooleanResolver().get_affected_columns(df)
+    assert affected == ["agree"]
+
+
+def test_boolean_resolver_does_not_fire_on_non_boolean() -> None:
+    df = pd.DataFrame({"text": ["Hello", "World"]})
+    assert BooleanResolver().detect(df) is False
+
+
+def test_boolean_resolver_does_not_fire_on_mixed_column() -> None:
+    df = pd.DataFrame({"agree": ["Yes", "No", "Maybe"]})
+    assert BooleanResolver().detect(df) is False
+
+
+def test_pipeline_converts_boolean_values() -> None:
+    content = _make_csv_bytes(
+        ("id", "agree"),
+        ("1", "Yes"),
+        ("2", "No"),
+        ("3", "True"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_boolean.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert df_out["agree"].tolist() == [1, 0, 1]
+
+
+# ---------------------------------------------------------------------------
+# LikertScaleResolver
+# ---------------------------------------------------------------------------
+
+def test_likert_resolver_detects_likert_column() -> None:
+    df = pd.DataFrame({"satisfaction": ["Agree", "Disagree", "Neutral"]})
+    assert LikertScaleResolver().detect(df) is True
+
+
+def test_likert_resolver_converts_to_numeric() -> None:
+    df = pd.DataFrame({"satisfaction": ["Strongly Agree", "Agree", "Neutral", "Disagree", "Strongly Disagree"]})
+    result = LikertScaleResolver().apply(df)
+    expected = [5, 4, 3, 2, 1]
+    assert result["satisfaction"].tolist() == expected
+
+
+def test_likert_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({"satisfaction": ["Agree", "Disagree"], "score": ["5", "4"]})
+    affected = LikertScaleResolver().get_affected_columns(df)
+    assert affected == ["satisfaction"]
+
+
+def test_likert_resolver_does_not_fire_on_non_likert() -> None:
+    df = pd.DataFrame({"text": ["Hello", "World"]})
+    assert LikertScaleResolver().detect(df) is False
+
+
+def test_likert_resolver_does_not_fire_on_mixed_column() -> None:
+    df = pd.DataFrame({"satisfaction": ["Agree", "Disagree", "Maybe"]})
+    assert LikertScaleResolver().detect(df) is False
+
+
+def test_pipeline_converts_likert_values() -> None:
+    content = _make_csv_bytes(
+        ("id", "satisfaction"),
+        ("1", "Agree"),
+        ("2", "Neutral"),
+        ("3", "Disagree"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_likert.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert df_out["satisfaction"].tolist() == [4, 3, 2]
+
+
+# ---------------------------------------------------------------------------
+# PercentResolver
+# ---------------------------------------------------------------------------
+
+def test_percent_resolver_detects_percent_column() -> None:
+    df = pd.DataFrame({"rate": ["45%", "72%"]})
+    assert PercentResolver().detect(df) is True
+
+
+def test_percent_resolver_converts_to_decimal() -> None:
+    df = pd.DataFrame({"rate": ["45%", "72%", "100%"]})
+    result = PercentResolver().apply(df)
+    expected = [0.45, 0.72, 1.0]
+    assert result["rate"].tolist() == expected
+
+
+def test_percent_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({"rate": ["45%", "72%"], "score": ["5", "4"]})
+    affected = PercentResolver().get_affected_columns(df)
+    assert affected == ["rate"]
+
+
+def test_percent_resolver_does_not_fire_on_non_percent() -> None:
+    df = pd.DataFrame({"text": ["Hello", "World"]})
+    assert PercentResolver().detect(df) is False
+
+
+def test_pipeline_converts_percent_values() -> None:
+    content = _make_csv_bytes(
+        ("id", "rate"),
+        ("1", "45%"),
+        ("2", "72%"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_percent.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert df_out["rate"].tolist() == [0.45, 0.72]
+
+
+# ---------------------------------------------------------------------------
+# NumericTextResolver
+# ---------------------------------------------------------------------------
+
+def test_numeric_text_resolver_detects_numeric_text_column() -> None:
+    df = pd.DataFrame({"age": ["34", "52"]})
+    assert NumericTextResolver().detect(df) is True
+
+
+def test_numeric_text_resolver_converts_dtype() -> None:
+    df = pd.DataFrame({"age": ["34", "52"]})
+    result = NumericTextResolver().apply(df)
+    assert result["age"].dtype in ['int64', 'float64']
+
+
+def test_numeric_text_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({"age": ["34", "52"], "name": ["John", "Jane"]})
+    affected = NumericTextResolver().get_affected_columns(df)
+    assert affected == ["age"]
+
+
+def test_numeric_text_resolver_does_not_fire_on_non_numeric() -> None:
+    df = pd.DataFrame({"text": ["Hello", "World"]})
+    assert NumericTextResolver().detect(df) is False
+
+
+def test_numeric_text_resolver_skips_id_column() -> None:
+    df = pd.DataFrame({"EmployeeID": ["1001", "1002"], "OrderCode": ["500", "501"], "score": ["5", "4"]})
+    resolver = NumericTextResolver()
+    affected = resolver.get_affected_columns(df)
+    assert "EmployeeID" not in affected
+    assert "OrderCode" not in affected
+    assert "score" in affected
+
+
+def test_pipeline_converts_numeric_text() -> None:
+    content = _make_csv_bytes(
+        ("id", "age"),
+        ("1", "25"),
+        ("2", "30"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_numeric.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert df_out["age"].dtype in ['int64', 'float64']
+
+
+# ---------------------------------------------------------------------------
+# MissingValueResolver
+# ---------------------------------------------------------------------------
+
+def test_missing_value_resolver_detects_missing_indicators() -> None:
+    df = pd.DataFrame({"score": ["5", "NA", "4"]})
+    assert MissingValueResolver().detect(df) is True
+
+
+def test_missing_value_resolver_converts_to_nan() -> None:
+    df = pd.DataFrame({"score": ["5", "NA", "N/A", "null", "", " "]})
+    result = MissingValueResolver().apply(df)
+    expected_nan_count = 5  # all except "5"
+    assert result["score"].isna().sum() == expected_nan_count
+
+
+def test_missing_value_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({"score": ["5", "NA"], "name": ["John", "Jane"]})
+    affected = MissingValueResolver().get_affected_columns(df)
+    assert affected == ["score"]
+
+
+def test_missing_value_resolver_does_not_fire_on_no_missing() -> None:
+    df = pd.DataFrame({"score": ["5", "4"]})
+    assert MissingValueResolver().detect(df) is False
+
+
+def test_pipeline_normalizes_missing_values() -> None:
+    content = _make_csv_bytes(
+        ("id", "score"),
+        ("1", "5"),
+        ("2", "NA"),
+        ("3", "N/A"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_missing.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert df_out["score"].isna().sum() == 2
 
 
 def test_engine_logs_fired_resolvers() -> None:
@@ -431,9 +667,11 @@ def test_report_contains_transformation_section() -> None:
 
 
 def test_report_notes_no_transformations_for_clean_data() -> None:
+    # Note: "clean" data may have numeric strings that are converted
     content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
     dataset_id, file_path = save_uploaded_file(content, "survey_clean.csv")
     result = run_normalization_pipeline(dataset_id, file_path)
 
     report_text = Path(result["artifacts"]["report"]).read_text(encoding="utf-8")
-    assert "No structural transformations were required" in report_text
+    assert "Transformations Applied" in report_text
+    assert "NumericTextResolver" in report_text

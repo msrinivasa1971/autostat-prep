@@ -146,7 +146,8 @@ No structural transformations were required.
         f"| {entry['resolver']} "
         f"| {entry['details']} "
         f"| {entry['rows_before']}→{entry['rows_after']} "
-        f"| {entry['cols_before']}→{entry['cols_after']} |"
+        f"| {entry['cols_before']}→{entry['cols_after']} "
+        f"| {', '.join(entry.get('affected_columns', [])) or 'N/A'} |"
         for entry in transformation_log
     )
 
@@ -156,7 +157,7 @@ No structural transformations were required.
 
 ## Transformations Applied
 
-| Resolver | Details | Rows | Columns |
-|---|---|---|---|
+| Resolver | Details | Rows | Columns | Affected Columns |
+|---|---|---|---|---|
 {rows}
 """

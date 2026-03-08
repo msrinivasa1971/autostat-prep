@@ -52,6 +52,7 @@ class ResolverEngine:
 
                 rows_before = len(df)
                 cols_before = len(df.columns)
+                affected_columns = resolver.get_affected_columns(df)
 
                 df = resolver.apply(df)
 
@@ -65,6 +66,7 @@ class ResolverEngine:
                     "rows_after": rows_after,
                     "cols_before": cols_before,
                     "cols_after": cols_after,
+                    "affected_columns": affected_columns,
                 }
                 log.append(entry)
                 logger.info(

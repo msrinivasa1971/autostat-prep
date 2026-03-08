@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 
 import pandas as pd
 
@@ -54,3 +55,13 @@ class BaseResolver(ABC):
           - Use pandas operations only for data transformations.
         """
         ...
+
+    def get_affected_columns(self, df: pd.DataFrame) -> List[str]:
+        """
+        Return a list of column names that this resolver will modify.
+
+        Called before apply() with the original df.
+        Default implementation returns an empty list.
+        Subclasses should override if they affect specific columns.
+        """
+        return []
