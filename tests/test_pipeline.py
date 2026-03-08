@@ -178,3 +178,262 @@ def test_validator_rejects_empty_column_name() -> None:
 def test_upload_rejects_unsupported_extension() -> None:
     with pytest.raises(ValueError, match="Unsupported file type"):
         save_uploaded_file(b"data", "survey.spss")
+
+
+# ===========================================================================
+# Sprint-2 — Resolver tests
+# ===========================================================================
+
+import pandas as pd
+
+from app.resolvers.structural_resolvers import (
+    BlankColumnResolver,
+    BlankRowResolver,
+    BOMResolver,
+    DuplicateColumnResolver,
+    HeaderNormalizerResolver,
+)
+from app.resolvers.resolver_engine import ResolverEngine
+from app.resolvers.resolver_registry import get_default_resolvers
+
+
+# ---------------------------------------------------------------------------
+# BOMResolver
+# ---------------------------------------------------------------------------
+
+def test_bom_resolver_detects_bom_in_first_column() -> None:
+    df = pd.DataFrame({"\ufeffQ1": ["a"], "Q2": ["b"]})
+    assert BOMResolver().detect(df) is True
+
+
+def test_bom_resolver_removes_bom() -> None:
+    df = pd.DataFrame({"\ufeffQ1": ["a"], "Q2": ["b"]})
+    result = BOMResolver().apply(df)
+    assert list(result.columns) == ["Q1", "Q2"]
+    assert df.columns[0] == "\ufeffQ1", "Input must not be mutated"
+
+
+def test_bom_resolver_does_not_fire_on_clean_data() -> None:
+    df = pd.DataFrame({"Q1": ["a"], "Q2": ["b"]})
+    assert BOMResolver().detect(df) is False
+
+
+# ---------------------------------------------------------------------------
+# BlankColumnResolver
+# ---------------------------------------------------------------------------
+
+def test_blank_column_resolver_detects_blank_column() -> None:
+    df = pd.DataFrame({"id": ["1", "2"], "blank": ["", ""]})
+    assert BlankColumnResolver().detect(df) is True
+
+
+def test_blank_column_resolver_removes_blank_column() -> None:
+    df = pd.DataFrame({"id": ["1", "2"], "blank": ["", ""], "score": ["5", "4"]})
+    result = BlankColumnResolver().apply(df)
+    assert list(result.columns) == ["id", "score"]
+    assert "blank" not in result.columns
+    assert "blank" in df.columns, "Input must not be mutated"
+
+
+def test_blank_column_resolver_does_not_fire_on_clean_data() -> None:
+    df = pd.DataFrame({"id": ["1"], "score": ["5"]})
+    assert BlankColumnResolver().detect(df) is False
+
+
+def test_pipeline_removes_blank_column() -> None:
+    content = _make_csv_bytes(
+        ("id", "score", "empty_col"),
+        ("1", "5.0", ""),
+        ("2", "4.0", ""),
+        ("3", "3.0", ""),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_blank_col.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert "empty_col" not in df_out.columns
+    assert result["column_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# BlankRowResolver
+# ---------------------------------------------------------------------------
+
+def test_blank_row_resolver_detects_blank_row() -> None:
+    df = pd.DataFrame({"id": ["1", "", "2"], "score": ["5", "", "4"]})
+    assert BlankRowResolver().detect(df) is True
+
+
+def test_blank_row_resolver_removes_blank_row() -> None:
+    df = pd.DataFrame({"id": ["1", "", "2"], "score": ["5", "", "4"]})
+    result = BlankRowResolver().apply(df)
+    assert len(result) == 2
+    assert list(result["id"]) == ["1", "2"]
+    assert len(df) == 3, "Input must not be mutated"
+
+
+def test_blank_row_resolver_resets_index() -> None:
+    df = pd.DataFrame({"id": ["1", "", "2"], "score": ["5", "", "4"]})
+    result = BlankRowResolver().apply(df)
+    assert list(result.index) == [0, 1]
+
+
+def test_blank_row_resolver_does_not_fire_on_clean_data() -> None:
+    df = pd.DataFrame({"id": ["1", "2"], "score": ["5", "4"]})
+    assert BlankRowResolver().detect(df) is False
+
+
+def test_pipeline_removes_blank_row() -> None:
+    content = _make_csv_bytes(
+        ("id", "score"),
+        ("1", "5.0"),
+        ("", ""),      # blank row
+        ("2", "4.0"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_blank_row.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert len(df_out) == 2
+    assert result["row_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# HeaderNormalizerResolver
+# ---------------------------------------------------------------------------
+
+def test_header_normalizer_detects_messy_headers() -> None:
+    df = pd.DataFrame({"Project Score": [1], "Q1": [2]})
+    assert HeaderNormalizerResolver().detect(df) is True
+
+
+def test_header_normalizer_lowercases_and_underscores() -> None:
+    df = pd.DataFrame({"Project Coordination Satisfaction": [1], "User ID": [2]})
+    result = HeaderNormalizerResolver().apply(df)
+    assert list(result.columns) == ["project_coordination_satisfaction", "user_id"]
+
+
+def test_header_normalizer_removes_punctuation() -> None:
+    df = pd.DataFrame({"Q1 (Score)": [1], "Q2 [Answer]": [2]})
+    result = HeaderNormalizerResolver().apply(df)
+    assert list(result.columns) == ["q1_score", "q2_answer"]
+
+
+def test_header_normalizer_does_not_fire_on_clean_headers() -> None:
+    df = pd.DataFrame({"project_score": [1], "user_id": [2]})
+    assert HeaderNormalizerResolver().detect(df) is False
+
+
+def test_pipeline_normalizes_column_headers() -> None:
+    content = b"Project Score,User ID,Q1 Answer\n1,2,3\n4,5,6\n"
+    dataset_id, file_path = save_uploaded_file(content, "survey_messy_headers.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert "project_score" in df_out.columns
+    assert "user_id" in df_out.columns
+    assert "q1_answer" in df_out.columns
+
+
+# ---------------------------------------------------------------------------
+# DuplicateColumnResolver
+# ---------------------------------------------------------------------------
+
+def test_duplicate_resolver_detects_duplicates() -> None:
+    df = pd.DataFrame([[1, 2, 3]], columns=["q1", "q2", "q1"])
+    assert DuplicateColumnResolver().detect(df) is True
+
+
+def test_duplicate_resolver_renames_second_occurrence() -> None:
+    df = pd.DataFrame([[1, 2, 3]], columns=["q1", "q2", "q1"])
+    result = DuplicateColumnResolver().apply(df)
+    assert list(result.columns) == ["q1", "q2", "q1_2"]
+
+
+def test_duplicate_resolver_handles_triple_duplicate() -> None:
+    df = pd.DataFrame([[1, 2, 3]], columns=["q1", "q1", "q1"])
+    result = DuplicateColumnResolver().apply(df)
+    assert list(result.columns) == ["q1", "q1_2", "q1_3"]
+
+
+def test_duplicate_resolver_skips_existing_suffix() -> None:
+    # q1_2 already exists — the renamed duplicate must become q1_3
+    df = pd.DataFrame([[1, 2, 3]], columns=["q1", "q1_2", "q1"])
+    result = DuplicateColumnResolver().apply(df)
+    assert list(result.columns) == ["q1", "q1_2", "q1_3"]
+
+
+def test_duplicate_resolver_does_not_fire_on_unique_columns() -> None:
+    df = pd.DataFrame({"q1": [1], "q2": [2], "q3": [3]})
+    assert DuplicateColumnResolver().detect(df) is False
+
+
+def test_pipeline_renames_normalization_created_duplicates() -> None:
+    # "Project Score" and "Project_Score" both normalize to "project_score"
+    content = b"Project Score,Q2,Project_Score\n1,2,3\n4,5,6\n"
+    dataset_id, file_path = save_uploaded_file(content, "survey_norm_dupes.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert "project_score" in df_out.columns
+    assert "project_score_2" in df_out.columns
+    assert "q2" in df_out.columns
+
+
+# ---------------------------------------------------------------------------
+# Resolver Engine
+# ---------------------------------------------------------------------------
+
+def test_engine_returns_empty_log_for_clean_data() -> None:
+    df = pd.DataFrame({"id": ["1", "2"], "score": ["5", "4"]})
+    engine = ResolverEngine(get_default_resolvers())
+    _, log = engine.run(df)
+    assert log == []
+
+
+def test_engine_logs_fired_resolvers() -> None:
+    # HeaderNormalizerResolver should fire on this DataFrame
+    df = pd.DataFrame({"Project Score": ["1"], "User ID": ["2"]})
+    engine = ResolverEngine(get_default_resolvers())
+    _, log = engine.run(df)
+
+    resolver_names = [entry["resolver"] for entry in log]
+    assert "HeaderNormalizerResolver" in resolver_names
+
+
+def test_engine_log_entries_have_required_fields() -> None:
+    df = pd.DataFrame({"Project Score": ["1"], "blank_col": [""]})
+    engine = ResolverEngine(get_default_resolvers())
+    _, log = engine.run(df)
+
+    for entry in log:
+        assert "resolver" in entry
+        assert "details" in entry
+        assert "rows_before" in entry
+        assert "rows_after" in entry
+        assert "cols_before" in entry
+        assert "cols_after" in entry
+
+
+# ---------------------------------------------------------------------------
+# Transformation log in report
+# ---------------------------------------------------------------------------
+
+def test_report_contains_transformation_section() -> None:
+    # A dataset that will trigger at least HeaderNormalizerResolver
+    content = b"Project Score,User ID\n1,2\n3,4\n"
+    dataset_id, file_path = save_uploaded_file(content, "survey_report_check.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    report_text = Path(result["artifacts"]["report"]).read_text(encoding="utf-8")
+    assert "Transformations Applied" in report_text
+    assert "HeaderNormalizerResolver" in report_text
+
+
+def test_report_notes_no_transformations_for_clean_data() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_clean.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    report_text = Path(result["artifacts"]["report"]).read_text(encoding="utf-8")
+    assert "No structural transformations were required" in report_text

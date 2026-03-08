@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -17,6 +17,7 @@ def build_artifacts(
     dataset: Dataset,
     df: pd.DataFrame,
     schemas: List[ColumnSchema],
+    transformation_log: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, str]:
     """
     Write the three output artifacts and return their absolute paths.
@@ -29,7 +30,7 @@ def build_artifacts(
     logger.info(f"Building artifacts for dataset {dataset.dataset_id}")
 
     csv_path = _write_normalized_csv(dataset, df)
-    report_path = _write_report(dataset, schemas)
+    report_path = _write_report(dataset, schemas, transformation_log or [])
     schema_path = _write_schema(dataset, schemas)
 
     logger.info(f"Artifacts generated for dataset {dataset.dataset_id}")
@@ -50,9 +51,16 @@ def _write_normalized_csv(dataset: Dataset, df: pd.DataFrame) -> Path:
     return path
 
 
-def _write_report(dataset: Dataset, schemas: List[ColumnSchema]) -> Path:
+def _write_report(
+    dataset: Dataset,
+    schemas: List[ColumnSchema],
+    transformation_log: List[Dict[str, Any]],
+) -> Path:
     path = REPORTS_DIR / f"{dataset.dataset_id}_report.md"
-    path.write_text(_build_report_content(dataset, schemas), encoding="utf-8")
+    path.write_text(
+        _build_report_content(dataset, schemas, transformation_log),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -71,7 +79,11 @@ def _write_schema(dataset: Dataset, schemas: List[ColumnSchema]) -> Path:
     return path
 
 
-def _build_report_content(dataset: Dataset, schemas: List[ColumnSchema]) -> str:
+def _build_report_content(
+    dataset: Dataset,
+    schemas: List[ColumnSchema],
+    transformation_log: List[Dict[str, Any]],
+) -> str:
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     header = f"""\
@@ -79,7 +91,7 @@ def _build_report_content(dataset: Dataset, schemas: List[ColumnSchema]) -> str:
 
 **Dataset ID:** {dataset.dataset_id}
 **Generated:** {generated_at}
-**Pipeline version:** Sprint-1
+**Pipeline version:** Sprint-2
 
 ---
 
@@ -89,6 +101,7 @@ def _build_report_content(dataset: Dataset, schemas: List[ColumnSchema]) -> str:
 |---|---|
 | Row Count | {dataset.row_count} |
 | Column Count | {dataset.column_count} |
+| Resolvers Applied | {len(transformation_log)} |
 
 ---
 
@@ -98,20 +111,52 @@ def _build_report_content(dataset: Dataset, schemas: List[ColumnSchema]) -> str:
 |---|---|---|---|---|
 """
 
-    rows = "\n".join(
+    col_rows = "\n".join(
         f"| {i + 1} | {s.column_name} | {s.column_type} | {s.missing_ratio:.4f} | {s.unique_values} |"
         for i, s in enumerate(schemas)
     )
+
+    transformations_section = _build_transformations_section(transformation_log)
 
     footer = """
 
 ---
 
-## Sprint-1 Notes
+## Notes
 
-- All columns inferred as `TEXT`. Full type inference arrives in Sprint-2.
-- Resolver pipeline not yet active. Structural normalization only.
+- Column types inferred as `TEXT`. Full type inference arrives in Sprint-3.
 - Audit trail records pipeline version for reproducibility.
 """
 
-    return header + rows + footer
+    return header + col_rows + transformations_section + footer
+
+
+def _build_transformations_section(transformation_log: List[Dict[str, Any]]) -> str:
+    if not transformation_log:
+        return """
+
+---
+
+## Transformations Applied
+
+No structural transformations were required.
+"""
+
+    rows = "\n".join(
+        f"| {entry['resolver']} "
+        f"| {entry['details']} "
+        f"| {entry['rows_before']}→{entry['rows_after']} "
+        f"| {entry['cols_before']}→{entry['cols_after']} |"
+        for entry in transformation_log
+    )
+
+    return f"""
+
+---
+
+## Transformations Applied
+
+| Resolver | Details | Rows | Columns |
+|---|---|---|---|
+{rows}
+"""
