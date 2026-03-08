@@ -1,0 +1,33 @@
+# AutoStat Prep — Normalization Report
+
+**Dataset ID:** 7c7ace43-ff21-44ff-aa6c-165cea4a5d29
+**Generated:** 2026-03-08 17:41:39 UTC
+**Pipeline version:** Sprint-1
+
+---
+
+## Summary
+
+| Field | Value |
+|---|---|
+| Row Count | 3 |
+| Column Count | 4 |
+
+---
+
+## Column Inventory
+
+| # | Column Name | Inferred Type | Missing Ratio | Unique Values |
+|---|---|---|---|---|
+| 1 | id | TEXT | 0.0000 | 3 |
+| 2 | age | TEXT | 0.0000 | 3 |
+| 3 | score | TEXT | 0.0000 | 3 |
+| 4 | category | TEXT | 0.0000 | 2 |
+
+---
+
+## Sprint-1 Notes
+
+- All columns inferred as `TEXT`. Full type inference arrives in Sprint-2.
+- Resolver pipeline not yet active. Structural normalization only.
+- Audit trail records pipeline version for reproducibility.
