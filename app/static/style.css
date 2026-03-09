@@ -74,6 +74,18 @@ button:hover { background: #2d2d5e; }
 
 select { padding: 0.25rem 0.4rem; border-radius: 3px; border: 1px solid #ccc; }
 
+.autostat-section { margin-bottom: 1rem; }
+.btn-autostat {
+  background: #1a7a1a;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.btn-autostat:hover { background: #156015; }
+
 ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
 li { margin-bottom: 0.3rem; }
 a  { color: #0056b3; }

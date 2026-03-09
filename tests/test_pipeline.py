@@ -1343,3 +1343,59 @@ def test_user_creation_writes_users_json() -> None:
 
     users = load_users()
     assert any(u.user_id == test_user_id for u in users)
+
+
+# ===========================================================================
+# Sprint-9 — AutoStat Integration tests
+# ===========================================================================
+
+from unittest.mock import MagicMock, patch
+
+
+def _setup_normalized_dataset():
+    """Helper: create and normalize a dataset, return (dataset_id, dataset_dir)."""
+    from app.utils.file_storage import find_dataset_dir
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_as9.csv")
+    run_normalization_pipeline(dataset_id, file_path)
+    dataset_dir = find_dataset_dir(dataset_id)
+    return dataset_id, dataset_dir
+
+
+def test_analysis_endpoint_returns_success() -> None:
+    dataset_id, _ = _setup_normalized_dataset()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"status": "complete", "summary": {"rows": 3}}
+
+    with patch("app.services.autostat_client.requests.post", return_value=mock_response):
+        with patch("app.services.autostat_client.AUTOSTAT_API_URL", "http://localhost:9000"):
+            with TestClient(app) as client:
+                response = client.post(f"/datasets/{dataset_id}/analyze")
+                assert response.status_code == 200
+                assert response.json()["status"] == "complete"
+
+
+def test_analysis_report_json_created() -> None:
+    dataset_id, dataset_dir = _setup_normalized_dataset()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"status": "complete", "result": 42}
+
+    with patch("app.services.autostat_client.requests.post", return_value=mock_response):
+        with patch("app.services.autostat_client.AUTOSTAT_API_URL", "http://localhost:9000"):
+            with TestClient(app) as client:
+                client.post(f"/datasets/{dataset_id}/analyze")
+
+    report_path = dataset_dir / "analysis_report.json"
+    assert report_path.exists(), "analysis_report.json must be written to dataset dir"
+
+
+def test_integration_disabled_when_autostat_url_not_set() -> None:
+    dataset_id, _ = _setup_normalized_dataset()
+
+    with patch("app.services.autostat_client.AUTOSTAT_API_URL", ""):
+        with TestClient(app) as client:
+            response = client.post(f"/datasets/{dataset_id}/analyze")
+            assert response.status_code == 503
+            assert "not configured" in response.json()["detail"]

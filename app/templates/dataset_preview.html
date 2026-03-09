@@ -22,6 +22,16 @@
     {{ columns | length }} column(s)
   </p>
 
+  <div class="autostat-section">
+    <form method="post" action="/datasets/{{ dataset_id }}/analyze" style="display:inline">
+      <button type="submit" class="btn-autostat">&#9654; Send to AutoStat</button>
+    </form>
+    {% if has_analysis_report %}
+    &nbsp;&nbsp;
+    <a href="/download/{{ dataset_id }}/analysis">&#128196; View analysis report</a>
+    {% endif %}
+  </div>
+
   <div class="table-container">
     <table>
       <thead>

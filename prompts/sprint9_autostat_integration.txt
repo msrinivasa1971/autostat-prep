@@ -1,0 +1,133 @@
+You are implementing **Sprint-9: AutoStat Integration** for AutoStat Prep.
+
+Repository root:
+
+D:\projects\autostat-prep
+
+Sprint-1 through Sprint-8 are complete and stable.
+
+IMPORTANT RULES
+
+• Do NOT modify resolver logic.
+• Do NOT modify normalization pipeline behavior.
+• AutoStat Prep must continue working as a standalone product.
+• AutoStat integration must be optional.
+• All existing tests must continue to pass.
+
+---
+
+SPRINT-9 OBJECTIVE
+
+Enable AutoStat Prep to send normalized datasets to AutoStat for statistical analysis.
+
+AutoStat will run as a **separate service** accessed through an HTTP API.
+
+---
+
+CONFIGURATION
+
+Add to app/config.py:
+
+AUTOSTAT_API_URL
+AUTOSTAT_API_TIMEOUT
+
+Example:
+
+AUTOSTAT_API_URL = "http://localhost:9000"
+
+---
+
+AUTOSTAT CLIENT
+
+Create service:
+
+app/services/autostat_client.py
+
+Functions required:
+
+send_dataset_for_analysis(dataset_id, user_id)
+
+This function must:
+
+1. Locate normalized dataset and schema.
+2. Send them to AutoStat using requests.post().
+3. Receive analysis results.
+4. Save the results as analysis_report.json in the dataset directory.
+
+---
+
+API ROUTE
+
+Add new endpoint:
+
+POST /datasets/{dataset_id}/analyze
+
+Steps:
+
+1. Verify normalized dataset exists.
+2. Call send_dataset_for_analysis().
+3. Return analysis job status.
+
+---
+
+UI CHANGE
+
+Modify dataset preview page.
+
+Add button:
+
+Send to AutoStat
+
+Button action:
+
+POST /datasets/{dataset_id}/analyze
+
+Display link to analysis report when available.
+
+---
+
+ARTIFACT
+
+Save analysis results as:
+
+analysis_report.json
+
+Example location:
+
+storage/users/{user_id}/datasets/{dataset_id}/analysis_report.json
+
+---
+
+TESTS
+
+Add tests verifying:
+
+analysis endpoint returns success
+analysis_report.json created
+integration disabled when AUTOSTAT_API_URL is not set
+
+All existing tests must continue to pass.
+
+---
+
+MANDATORY IMPLEMENTATION REPORT
+
+After implementation provide a report including:
+
+FILES CREATED
+FILES MODIFIED
+AUTOSTAT CLIENT DESIGN
+API ROUTES ADDED
+UI CHANGES
+TEST COVERAGE
+RUN VERIFICATION
+
+---
+
+SUCCESS CRITERIA
+
+All existing tests pass.
+New integration tests pass.
+Server runs successfully with:
+
+uvicorn app.main:app --reload

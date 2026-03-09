@@ -8,12 +8,13 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.api.routes import _jobs, _run_normalization_job
 from app.config import TEMPLATES_DIR, USERS_STORAGE_DIR
 from app.models.overrides import ColumnOverride
+from app.services.autostat_client import send_dataset_for_analysis
 from app.services.override_service import load_overrides, save_overrides
 from app.utils.file_storage import find_dataset_dir, save_uploaded_file
 
@@ -26,6 +27,7 @@ _ARTIFACT_FILENAMES = {
     "schema":     "schema.json",
     "trace":      "resolver_trace.json",
     "overrides":  "overrides.json",
+    "analysis":   "analysis_report.json",
 }
 _ARTIFACT_MEDIA = {
     "normalized": "text/csv",
@@ -33,6 +35,7 @@ _ARTIFACT_MEDIA = {
     "schema":     "application/json",
     "trace":      "application/json",
     "overrides":  "application/json",
+    "analysis":   "application/json",
 }
 
 
@@ -68,7 +71,7 @@ def job_status_page(request: Request, job_id: str) -> HTMLResponse:
 def dataset_preview(request: Request, dataset_id: str) -> HTMLResponse:
     dataset_dir = find_dataset_dir(dataset_id)
     _error_ctx = {"dataset_id": dataset_id, "error": "Normalized dataset not found. Run normalization first.",
-                  "columns": [], "rows": [], "schema_types": {}, "overrides_count": 0}
+                  "columns": [], "rows": [], "schema_types": {}, "overrides_count": 0, "has_analysis_report": False}
     if dataset_dir is None or not (dataset_dir / "normalized.csv").exists():
         return templates.TemplateResponse(request, "dataset_preview.html", _error_ctx)
 
@@ -87,6 +90,7 @@ def dataset_preview(request: Request, dataset_id: str) -> HTMLResponse:
     return templates.TemplateResponse(request, "dataset_preview.html", {
         "dataset_id": dataset_id, "columns": list(df.columns),
         "rows": df.values.tolist(), "schema_types": schema_types, "overrides_count": len(overrides),
+        "has_analysis_report": (dataset_dir / "analysis_report.json").exists(),
     })
 
 
@@ -167,3 +171,38 @@ def dashboard(request: Request, user_id: str) -> HTMLResponse:
                 "download_schema": f"/download/{d.name}/schema",
             })
     return templates.TemplateResponse(request, "dashboard.html", {"user_id": user_id, "datasets": datasets})
+
+
+# ---------------------------------------------------------------------------
+# POST /datasets/{dataset_id}/analyze  — Send to AutoStat
+# ---------------------------------------------------------------------------
+
+@ui_router.post("/datasets/{dataset_id}/analyze")
+def analyze_dataset(dataset_id: str) -> JSONResponse:
+    """
+    Send the normalized dataset to AutoStat for statistical analysis.
+
+    Returns 503 if AUTOSTAT_API_URL is not configured.
+    Returns 400 if normalization is not complete.
+    Saves analysis_report.json in the dataset directory on success.
+    """
+    dataset_dir = find_dataset_dir(dataset_id)
+    if dataset_dir is None or not (dataset_dir / "normalized.csv").exists():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot analyze: dataset normalization is not complete.",
+        )
+
+    user_id = _user_id_from_dir(dataset_dir)
+    try:
+        result = send_dataset_for_analysis(dataset_id, user_id=user_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AutoStat service error: {exc}")
+
+    return JSONResponse(
+        {"status": "complete", "dataset_id": dataset_id, "analysis": result}
+    )

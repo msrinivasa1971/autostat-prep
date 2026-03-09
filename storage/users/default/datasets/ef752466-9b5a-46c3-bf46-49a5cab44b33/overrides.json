@@ -1,0 +1,9 @@
+{
+  "dataset_id": "ef752466-9b5a-46c3-bf46-49a5cab44b33",
+  "overrides": [
+    {
+      "column_name": "category",
+      "override_type": "IGNORE"
+    }
+  ]
+}

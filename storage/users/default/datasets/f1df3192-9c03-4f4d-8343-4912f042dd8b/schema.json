@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "columns": [
+    {
+      "column_name": "project_score",
+      "inferred_type": "TEXT",
+      "missing_ratio": 0.0,
+      "unique_values": 2
+    },
+    {
+      "column_name": "user_id",
+      "inferred_type": "TEXT",
+      "missing_ratio": 0.0,
+      "unique_values": 2
+    }
+  ]
+}
