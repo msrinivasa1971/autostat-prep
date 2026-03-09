@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Overrides {{ dataset_id[:8] }}{% endblock %}
+
+{% block content %}
+<h2>Column Overrides</h2>
+<p><strong>Dataset ID:</strong> <code>{{ dataset_id }}</code></p>
+
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% else %}
+  <p>
+    Select an interpretation override for any column below.
+    Choose <em>Default</em> to keep the automatically inferred type.
+    Columns set to <em>Ignore</em> will be hidden from previews.
+  </p>
+
+  {% if saved %}
+  <p class="success">Overrides saved successfully.</p>
+  {% endif %}
+
+  <form method="post" action="/datasets/{{ dataset_id }}/overrides">
+    <table>
+      <thead>
+        <tr>
+          <th>Column</th>
+          <th>Inferred Type</th>
+          <th>Override</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for col in columns %}
+        <tr>
+          <td><code>{{ col }}</code></td>
+          <td>{{ schema_types.get(col, "—") }}</td>
+          <td>
+            <select name="col_{{ col }}">
+              <option value="DEFAULT" {{ 'selected' if override_map.get(col) is none else '' }}>Default (no override)</option>
+              <option value="LIKERT"  {{ 'selected' if override_map.get(col) == "LIKERT"  else '' }}>Likert</option>
+              <option value="BOOLEAN" {{ 'selected' if override_map.get(col) == "BOOLEAN" else '' }}>Boolean</option>
+              <option value="NUMERIC" {{ 'selected' if override_map.get(col) == "NUMERIC" else '' }}>Numeric</option>
+              <option value="TEXT"    {{ 'selected' if override_map.get(col) == "TEXT"    else '' }}>Text</option>
+              <option value="IGNORE"  {{ 'selected' if override_map.get(col) == "IGNORE"  else '' }}>Ignore column</option>
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <br>
+    <button type="submit">Save Overrides</button>
+  </form>
+
+  <p style="margin-top:1rem">
+    <a href="/datasets/{{ dataset_id }}/preview">&larr; Back to preview</a>
+  </p>
+{% endif %}
+{% endblock %}

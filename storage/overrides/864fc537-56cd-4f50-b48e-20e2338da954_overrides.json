@@ -1,0 +1,9 @@
+{
+  "dataset_id": "864fc537-56cd-4f50-b48e-20e2338da954",
+  "overrides": [
+    {
+      "column_name": "category",
+      "override_type": "IGNORE"
+    }
+  ]
+}

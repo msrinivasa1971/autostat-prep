@@ -8,6 +8,7 @@ RAW_DIR: Path = STORAGE_DIR / "raw"
 NORMALIZED_DIR: Path = STORAGE_DIR / "normalized"
 REPORTS_DIR: Path = STORAGE_DIR / "reports"
 SCHEMAS_DIR: Path = STORAGE_DIR / "schemas"
+OVERRIDES_DIR: Path = STORAGE_DIR / "overrides"
 
 TEMPLATES_DIR: Path = BASE_DIR / "app" / "templates"
 STATIC_DIR: Path = BASE_DIR / "app" / "static"

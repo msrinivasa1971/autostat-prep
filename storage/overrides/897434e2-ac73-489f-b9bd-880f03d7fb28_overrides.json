@@ -1,0 +1,9 @@
+{
+  "dataset_id": "897434e2-ac73-489f-b9bd-880f03d7fb28",
+  "overrides": [
+    {
+      "column_name": "score",
+      "override_type": "IGNORE"
+    }
+  ]
+}

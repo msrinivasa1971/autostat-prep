@@ -38,6 +38,8 @@
 
     <p>
       <a href="/datasets/{{ job.dataset_id }}/preview">Preview normalized data &rarr;</a>
+      &nbsp;&nbsp;
+      <a href="/datasets/{{ job.dataset_id }}/overrides">Manage column overrides &rarr;</a>
     </p>
 
   {% elif job.status == "FAILED" %}

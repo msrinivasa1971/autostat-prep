@@ -1,0 +1,89 @@
+[
+  {
+    "resolver": "BOMResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "BlankColumnResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "BlankRowResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "HeaderNormalizerResolver",
+    "detected": true,
+    "applied": true,
+    "affected_columns": []
+  },
+  {
+    "resolver": "DuplicateColumnResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "BooleanResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "LikertScaleResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "PercentResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "NumericTextResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "MissingValueResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "MultiRowHeaderResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "MultiSelectResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "DelimitedListResolver",
+    "detected": false,
+    "applied": false,
+    "affected_columns": []
+  },
+  {
+    "resolver": "CarryForwardResolver",
+    "detected": true,
+    "applied": true,
+    "affected_columns": [
+      "q1",
+      "q2"
+    ]
+  }
+]

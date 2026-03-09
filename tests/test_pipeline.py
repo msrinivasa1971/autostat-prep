@@ -1247,3 +1247,64 @@ def test_job_status_page_returns_200_for_valid_job() -> None:
         response = client.get(f"/jobs/{job_id}/view")
         assert response.status_code == 200
         assert job_id in response.text
+
+
+# ===========================================================================
+# Sprint-7 — Interactive Resolver Decisions (Column Overrides)
+# ===========================================================================
+
+from app.models.overrides import ColumnOverride, ALLOWED_OVERRIDE_TYPES
+from app.services.override_service import load_overrides, save_overrides
+
+
+def test_override_page_loads() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_ov1.csv")
+    run_normalization_pipeline(dataset_id, file_path)
+
+    with TestClient(app) as client:
+        response = client.get(f"/datasets/{dataset_id}/overrides")
+        assert response.status_code == 200
+        assert "Column Overrides" in response.text
+
+
+def test_overrides_file_created_correctly() -> None:
+    import json as _json2
+
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_ov2.csv")
+    run_normalization_pipeline(dataset_id, file_path)
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/datasets/{dataset_id}/overrides",
+            data={"col_score": "IGNORE"},
+            follow_redirects=False,
+        )
+        # Expect 303 redirect back to overrides page
+        assert response.status_code == 303
+
+    overrides = load_overrides(dataset_id)
+    assert len(overrides) == 1
+    assert overrides[0].column_name == "score"
+    assert overrides[0].override_type == "IGNORE"
+
+
+def test_ignored_column_removed_from_preview() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_ov3.csv")
+    run_normalization_pipeline(dataset_id, file_path)
+
+    save_overrides(dataset_id, [
+        ColumnOverride(dataset_id=dataset_id, column_name="category", override_type="IGNORE")
+    ])
+
+    with TestClient(app) as client:
+        response = client.get(f"/datasets/{dataset_id}/preview")
+        assert response.status_code == 200
+        assert "category" not in response.text
+
+
+def test_invalid_override_type_rejected() -> None:
+    with pytest.raises(ValueError, match="Invalid override_type"):
+        ColumnOverride(dataset_id="x", column_name="col", override_type="NONSENSE")

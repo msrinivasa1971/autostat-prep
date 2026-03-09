@@ -8,6 +8,15 @@
 {% if error %}
   <p class="error">{{ error }}</p>
 {% else %}
+  {% if overrides_count > 0 %}
+  <p class="overrides-note">
+    Overrides applied: {{ overrides_count }} column(s) &mdash;
+    <a href="/datasets/{{ dataset_id }}/overrides">manage overrides</a>
+  </p>
+  {% else %}
+  <p><a href="/datasets/{{ dataset_id }}/overrides">Manage column overrides</a></p>
+  {% endif %}
+
   <p>
     Showing first {{ rows | length }} row(s) &mdash;
     {{ columns | length }} column(s)

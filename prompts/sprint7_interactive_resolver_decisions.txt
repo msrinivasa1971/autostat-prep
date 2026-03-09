@@ -1,0 +1,174 @@
+You are implementing **Sprint-7: Interactive Resolver Decisions** for AutoStat Prep.
+
+Repository root:
+
+D:\projects\autostat-prep
+
+Sprint-1 through Sprint-6 are complete and stable.
+
+IMPORTANT RULES
+
+• Do NOT change resolver logic.
+• Do NOT modify the normalization pipeline.
+• Do NOT introduce new resolvers.
+• Only add a mechanism for **user overrides of column interpretation**.
+• All existing tests must continue to pass.
+
+---
+
+SPRINT-7 OBJECTIVE
+
+Provide a UI and backend mechanism allowing users to override column interpretations when automatic detection may be incorrect.
+
+Examples:
+
+Likert scale incorrectly detected as text
+Boolean detected column should be treated as nominal
+Column should be ignored during analysis
+
+---
+
+OVERRIDE MODEL
+
+Create a new model:
+
+app/models/overrides.py
+
+Define:
+
+ColumnOverride
+
+Fields:
+
+dataset_id: str
+column_name: str
+override_type: str
+
+Allowed override_type values:
+
+LIKERT
+BOOLEAN
+NUMERIC
+TEXT
+IGNORE
+
+Overrides should be stored in a simple JSON file:
+
+storage/overrides/{dataset_id}_overrides.json
+
+---
+
+UI PAGE
+
+Add a new page:
+
+GET /datasets/{dataset_id}/overrides
+
+Display:
+
+• column names
+• inferred type (from dataset_schema.json)
+• dropdown selector with override options
+
+Override options:
+
+Default (no override)
+Likert
+Boolean
+Numeric
+Text
+Ignore column
+
+Form submission:
+
+POST /datasets/{dataset_id}/overrides
+
+Save overrides to JSON file.
+
+---
+
+PREVIEW UPDATE
+
+Modify dataset preview page:
+
+GET /datasets/{dataset_id}/preview
+
+Display a note when overrides exist:
+
+"Overrides applied: X columns"
+
+Ignored columns should not appear in preview.
+
+---
+
+ARTIFACT
+
+Add new artifact:
+
+overrides.json
+
+Example:
+
+{
+"dataset_id": "...",
+"overrides": [
+{"column_name": "satisfaction", "override_type": "LIKERT"},
+{"column_name": "employee_id", "override_type": "IGNORE"}
+]
+}
+
+---
+
+ROUTES TO ADD
+
+GET /datasets/{dataset_id}/overrides
+POST /datasets/{dataset_id}/overrides
+
+---
+
+SECURITY
+
+Only allow overrides for datasets that have completed normalization.
+
+If state != COMPLETE → return error.
+
+---
+
+TESTS
+
+Add tests verifying:
+
+override page loads successfully
+overrides file is created correctly
+ignored column removed from preview
+invalid override type rejected
+
+All existing tests must pass unchanged.
+
+---
+
+MANDATORY IMPLEMENTATION REPORT
+
+After implementation provide a report including:
+
+FILES CREATED
+FILES MODIFIED
+OVERRIDE MODEL
+UI ROUTES ADDED
+ARTIFACT FORMAT
+TEST COVERAGE
+RUN VERIFICATION
+
+---
+
+SUCCESS CRITERIA
+
+All existing tests pass.
+New override tests pass.
+Server runs successfully with:
+
+uvicorn app.main:app --reload
+
+Overrides page accessible at:
+
+http://127.0.0.1:8000/datasets/{dataset_id}/overrides
