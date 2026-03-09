@@ -1,7 +1,9 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
-from app.config import APP_TITLE, APP_VERSION
+from app.api.ui_routes import ui_router
+from app.config import APP_TITLE, APP_VERSION, STATIC_DIR
 from app.utils.logging_config import get_logger
 
 logger = get_logger("autostat_prep")
@@ -15,6 +17,9 @@ app = FastAPI(
     version=APP_VERSION,
 )
 
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+app.include_router(ui_router)
 app.include_router(router)
 
 

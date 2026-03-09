@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Preview {{ dataset_id[:8] }}{% endblock %}
+
+{% block content %}
+<h2>Dataset Preview</h2>
+<p><strong>Dataset ID:</strong> <code>{{ dataset_id }}</code></p>
+
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% else %}
+  <p>
+    Showing first {{ rows | length }} row(s) &mdash;
+    {{ columns | length }} column(s)
+  </p>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          {% for col in columns %}
+          <th>
+            {{ col }}
+            {% if col in schema_types %}
+            <br><small>{{ schema_types[col] }}</small>
+            {% endif %}
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          {% for cell in row %}
+          <td>{{ cell if cell is not none else "" }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+{% endblock %}

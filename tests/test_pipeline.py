@@ -1209,3 +1209,41 @@ def test_upload_accepts_clean_csv() -> None:
     content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
     dataset_id, path = save_uploaded_file(content, "clean.csv")
     assert dataset_id  # no exception raised
+
+
+# ===========================================================================
+# Sprint-6 — Dataset Inspection UI tests
+# ===========================================================================
+
+def test_home_page_loads() -> None:
+    with TestClient(app) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "Upload" in response.text
+
+
+def test_dataset_preview_returns_200() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_preview.csv")
+    run_normalization_pipeline(dataset_id, file_path)
+
+    with TestClient(app) as client:
+        response = client.get(f"/datasets/{dataset_id}/preview")
+        assert response.status_code == 200
+        assert "Dataset Preview" in response.text
+
+
+def test_job_status_page_returns_200_for_valid_job() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    with TestClient(app) as client:
+        upload = client.post(
+            "/prep/upload",
+            files={"file": ("survey.csv", content, "text/csv")},
+        )
+        dataset_id = upload.json()["dataset_id"]
+        norm = client.post(f"/prep/normalize/{dataset_id}")
+        job_id = norm.json()["job_id"]
+
+        response = client.get(f"/jobs/{job_id}/view")
+        assert response.status_code == 200
+        assert job_id in response.text

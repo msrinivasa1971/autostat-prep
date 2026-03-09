@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Job {{ job_id[:8] }}{% endblock %}
+
+{% block content %}
+<h2>Job Status</h2>
+<p><strong>Job ID:</strong> <code>{{ job_id }}</code></p>
+
+{% if job is none %}
+  <p class="error">Job not found.</p>
+{% else %}
+  <p>
+    <strong>Status:</strong>
+    <span class="status-{{ job.status | lower }}">{{ job.status }}</span>
+  </p>
+
+  {% if job.status == "NORMALIZING" %}
+    <form method="get" action="/jobs/{{ job_id }}/view">
+      <button type="submit">&#8635; Refresh</button>
+    </form>
+
+  {% elif job.status == "COMPLETE" %}
+    <p><strong>Dataset Hash:</strong> <code>{{ job.dataset_hash }}</code></p>
+    <p>
+      <strong>Rows:</strong> {{ job.row_count }}
+      &nbsp;&nbsp;
+      <strong>Columns:</strong> {{ job.column_count }}
+      &nbsp;&nbsp;
+      <strong>Resolvers Applied:</strong> {{ job.resolvers_applied }}
+    </p>
+
+    <h3>Download Artifacts</h3>
+    <ul>
+      <li><a href="/download/{{ job.dataset_id }}/normalized">normalized_dataset.csv</a></li>
+      <li><a href="/download/{{ job.dataset_id }}/report">normalization_report.md</a></li>
+      <li><a href="/download/{{ job.dataset_id }}/schema">dataset_schema.json</a></li>
+      <li><a href="/download/{{ job.dataset_id }}/trace">resolver_trace.json</a></li>
+    </ul>
+
+    <p>
+      <a href="/datasets/{{ job.dataset_id }}/preview">Preview normalized data &rarr;</a>
+    </p>
+
+  {% elif job.status == "FAILED" %}
+    <p class="error"><strong>Error:</strong> {{ job.error }}</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

@@ -9,6 +9,9 @@ NORMALIZED_DIR: Path = STORAGE_DIR / "normalized"
 REPORTS_DIR: Path = STORAGE_DIR / "reports"
 SCHEMAS_DIR: Path = STORAGE_DIR / "schemas"
 
+TEMPLATES_DIR: Path = BASE_DIR / "app" / "templates"
+STATIC_DIR: Path = BASE_DIR / "app" / "static"
+
 ALLOWED_EXTENSIONS: set = {".csv", ".xlsx"}
 MAX_FILE_SIZE_BYTES: int = 100 * 1024 * 1024  # 100 MB
 

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Upload{% endblock %}
+
+{% block content %}
+<h2>Upload Dataset</h2>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<form method="post" action="/ui/upload" enctype="multipart/form-data">
+  <label for="dataset_file">Dataset file (CSV or XLSX):</label>
+  <input type="file" id="dataset_file" name="file" accept=".csv,.xlsx" required>
+  <button type="submit">Upload &amp; Normalize</button>
+</form>
+{% endblock %}

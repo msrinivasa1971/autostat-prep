@@ -1,0 +1,192 @@
+You are implementing **Sprint-6: Dataset Inspection UI** for AutoStat Prep.
+
+Repository root:
+
+D:\projects\autostat-prep
+
+Sprint-1 through Sprint-5 are complete and stable.
+
+IMPORTANT RULES
+
+• Do NOT modify resolver logic.
+• Do NOT modify the normalization pipeline.
+• Do NOT change existing API behavior.
+• Only add a minimal user interface layer for dataset inspection.
+• All existing tests must continue to pass.
+
+---
+
+SPRINT-6 OBJECTIVE
+
+Provide a **simple web interface** that allows users to:
+
+• upload a dataset
+• view job progress
+• preview normalized data
+• download generated artifacts
+
+The UI should use **FastAPI + Jinja templates**.
+
+Do NOT introduce React or heavy frontend frameworks.
+
+---
+
+UI PAGES
+
+Create a small UI with the following pages.
+
+1. Home Page
+
+Route:
+
+GET /
+
+Display:
+
+• Upload dataset form
+• Link to recent jobs
+
+Upload form fields:
+
+dataset_file (CSV or XLSX)
+
+Submit action:
+
+POST /prep/upload
+
+After upload redirect to job status page.
+
+---
+
+2. Job Status Page
+
+Route:
+
+GET /jobs/{job_id}/view
+
+Display:
+
+• job status (NORMALIZING / COMPLETE / FAILED)
+• dataset hash
+• link to download artifacts when complete
+
+If status is NORMALIZING, show refresh button.
+
+---
+
+3. Dataset Preview Page
+
+Route:
+
+GET /datasets/{dataset_id}/preview
+
+Display:
+
+• first 50 rows of normalized dataset
+• column names
+• inferred types from dataset_schema.json
+
+Use pandas to read the normalized CSV and render a small HTML table.
+
+---
+
+4. Artifact Download Links
+
+Display links for:
+
+normalized_dataset.csv
+normalization_report.md
+dataset_schema.json
+resolver_trace.json
+
+These files already exist in storage; simply serve them.
+
+---
+
+TEMPLATE STRUCTURE
+
+Create directory:
+
+app/templates/
+
+Files required:
+
+base.html
+home.html
+job_status.html
+dataset_preview.html
+
+Use Jinja2 templates.
+
+Minimal styling is sufficient.
+
+---
+
+STATIC FILES
+
+Create:
+
+app/static/style.css
+
+Add basic styling so tables and pages are readable.
+
+---
+
+API ROUTES
+
+Extend app/api/routes.py.
+
+Add routes:
+
+GET /                → home page
+GET /jobs/{job_id}/view
+GET /datasets/{dataset_id}/preview
+
+Reuse existing normalization endpoints where possible.
+
+---
+
+SECURITY RULES
+
+Only allow file uploads through the existing upload endpoint.
+
+Do not duplicate upload logic in UI routes.
+
+---
+
+TESTS
+
+Existing tests must remain unchanged.
+
+Add tests verifying:
+
+home page loads successfully
+dataset preview route returns 200
+job status page returns 200 for valid job id
+
+---
+
+MANDATORY IMPLEMENTATION REPORT
+
+After implementation produce a report including:
+
+FILES CREATED
+FILES MODIFIED
+UI ROUTES ADDED
+TEMPLATE STRUCTURE
+TESTS ADDED
+RUN VERIFICATION
+
+---
+
+SUCCESS CRITERIA
+
+All existing tests pass.
+New UI tests pass.
+Server runs successfully with:
+
+uvicorn app.main:app --reload
+
+UI accessible at:
+
+http://127.0.0.1:8000
