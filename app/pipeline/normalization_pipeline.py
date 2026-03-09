@@ -42,6 +42,7 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
     # --- Stage 2: Resolve ----------------------------------------------------
     engine = ResolverEngine(get_default_resolvers())
     df, transformation_log = engine.run(df)
+    resolver_trace = engine.resolver_trace
 
     # --- Stage 3: Profile ----------------------------------------------------
     # Rebuild the Dataset descriptor and column schemas to match the resolved
@@ -60,7 +61,7 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
     validate_dataset(dataset, df)
 
     # --- Stage 5: Build artifacts --------------------------------------------
-    artifacts = build_artifacts(dataset, df, schemas, transformation_log)
+    artifacts = build_artifacts(dataset, df, schemas, transformation_log, resolver_trace)
 
     logger.info(
         f"[Pipeline] COMPLETE dataset_id={dataset_id} "

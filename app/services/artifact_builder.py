@@ -18,26 +18,30 @@ def build_artifacts(
     df: pd.DataFrame,
     schemas: List[ColumnSchema],
     transformation_log: Optional[List[Dict[str, Any]]] = None,
+    resolver_trace: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, str]:
     """
-    Write the three output artifacts and return their absolute paths.
+    Write the four output artifacts and return their absolute paths.
 
     Artifacts:
-        normalized_dataset.csv  → storage/normalized/
-        normalization_report.md → storage/reports/
-        dataset_schema.json     → storage/schemas/
+        normalized_dataset.csv      → storage/normalized/
+        normalization_report.md     → storage/reports/
+        dataset_schema.json         → storage/schemas/
+        resolver_trace.json         → storage/reports/
     """
     logger.info(f"Building artifacts for dataset {dataset.dataset_id}")
 
     csv_path = _write_normalized_csv(dataset, df)
     report_path = _write_report(dataset, schemas, transformation_log or [])
     schema_path = _write_schema(dataset, schemas)
+    trace_path = _write_resolver_trace(dataset, resolver_trace or [])
 
     logger.info(f"Artifacts generated for dataset {dataset.dataset_id}")
     return {
         "dataset": str(csv_path),
         "report": str(report_path),
         "schema": str(schema_path),
+        "resolver_trace": str(trace_path),
     }
 
 
@@ -129,6 +133,12 @@ def _build_report_content(
 """
 
     return header + col_rows + transformations_section + footer
+
+
+def _write_resolver_trace(dataset: Dataset, resolver_trace: List[Dict[str, Any]]) -> Path:
+    path = REPORTS_DIR / f"{dataset.dataset_id}_resolver_trace.json"
+    path.write_text(json.dumps(resolver_trace, indent=2), encoding="utf-8")
+    return path
 
 
 def _build_transformations_section(transformation_log: List[Dict[str, Any]]) -> str:

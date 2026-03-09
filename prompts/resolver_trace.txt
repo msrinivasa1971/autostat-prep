@@ -1,0 +1,92 @@
+You are implementing an architectural improvement in AutoStat Prep.
+
+Repository:
+
+D:\projects\autostat-prep
+
+Current system includes:
+
+resolver_engine
+14 resolvers
+transformation log
+
+Your task is to implement a **Resolver Execution Trace**.
+
+---
+
+OBJECTIVE
+
+Record the evaluation result of every resolver during normalization.
+
+The trace must record:
+
+resolver_name
+detected (boolean)
+applied (boolean)
+affected_columns
+
+---
+
+IMPLEMENTATION
+
+Modify:
+
+app/resolvers/resolver_engine.py
+
+For each resolver execution record:
+
+{
+"resolver": resolver.resolver_name,
+"detected": detected,
+"applied": applied,
+"affected_columns": [...]
+}
+
+Append entries to a list called resolver_trace.
+
+---
+
+ARTIFACT
+
+Write resolver_trace to:
+
+resolver_trace.json
+
+in the reports output directory.
+
+---
+
+TRANSFORMATION LOG
+
+Transformation log should remain unchanged.
+
+It should continue listing only resolvers that applied changes.
+
+---
+
+TESTS
+
+Add tests verifying:
+
+resolver_trace contains an entry for every resolver
+applied=true only when transformation occurred
+trace length equals number of resolvers in registry
+
+---
+
+REPORT
+
+Provide a change report including:
+
+FILES MODIFIED
+TRACE FORMAT
+TESTS ADDED
+RUN VERIFICATION
+
+---
+
+SUCCESS CRITERIA
+
+All existing tests pass.
+New trace tests pass.
+resolver_trace.json is generated.

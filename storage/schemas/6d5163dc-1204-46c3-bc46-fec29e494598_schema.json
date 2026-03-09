@@ -1,0 +1,26 @@
+[
+  {
+    "column_name": "id",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 3
+  },
+  {
+    "column_name": "tools_asana",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 2
+  },
+  {
+    "column_name": "tools_jira",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 2
+  },
+  {
+    "column_name": "tools_trello",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 2
+  }
+]

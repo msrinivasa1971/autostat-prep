@@ -966,6 +966,46 @@ def test_engine_logs_carry_forward_resolver() -> None:
     assert "Q1" in log[0]["affected_columns"]
 
 
+# ===========================================================================
+# Sprint-4 — Resolver Trace tests
+# ===========================================================================
+
+def test_resolver_trace_has_entry_for_every_resolver() -> None:
+    # Even resolvers that do not fire must appear in the trace.
+    df = pd.DataFrame({"id": ["1", "2"], "score": ["5", "4"]})
+    engine = ResolverEngine(get_default_resolvers())
+    engine.run(df)
+    assert len(engine.resolver_trace) == len(get_default_resolvers())
+
+
+def test_resolver_trace_applied_only_when_transformation_occurred() -> None:
+    # NumericTextResolver fires on numeric strings; all others should not.
+    df = pd.DataFrame({"id": ["1", "2"], "score": ["5", "4"]})
+    engine = ResolverEngine(get_default_resolvers())
+    _, log = engine.run(df)
+    applied_in_trace = [e["resolver"] for e in engine.resolver_trace if e["applied"]]
+    applied_in_log   = [e["resolver"] for e in log]
+    assert applied_in_trace == applied_in_log
+
+
+def test_resolver_trace_json_written_by_pipeline() -> None:
+    import json
+
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_trace.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    trace_path = Path(result["artifacts"]["resolver_trace"])
+    assert trace_path.exists(), "resolver_trace.json must be written"
+    trace = json.loads(trace_path.read_text(encoding="utf-8"))
+    assert len(trace) == len(get_default_resolvers())
+    for entry in trace:
+        assert "resolver" in entry
+        assert "detected" in entry
+        assert "applied" in entry
+        assert "affected_columns" in entry
+
+
 def test_pipeline_converts_carry_forward_artifacts() -> None:
     content = _make_csv_bytes(
         ("id", "Q1", "Q2"),
