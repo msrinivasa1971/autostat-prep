@@ -200,6 +200,12 @@ from app.resolvers.encoding_resolvers import (
     NumericTextResolver,
     PercentResolver,
 )
+from app.resolvers.survey_resolvers import (
+    CarryForwardResolver,
+    DelimitedListResolver,
+    MultiRowHeaderResolver,
+    MultiSelectResolver,
+)
 from app.resolvers.resolver_engine import ResolverEngine
 from app.resolvers.resolver_registry import get_default_resolvers
 
@@ -675,3 +681,301 @@ def test_report_notes_no_transformations_for_clean_data() -> None:
     report_text = Path(result["artifacts"]["report"]).read_text(encoding="utf-8")
     assert "Transformations Applied" in report_text
     assert "NumericTextResolver" in report_text
+
+
+# ===========================================================================
+# Sprint-4 — Survey Resolver tests
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# MultiSelectResolver
+# ---------------------------------------------------------------------------
+
+def test_multi_select_resolver_detects_semicolon_column() -> None:
+    df = pd.DataFrame({"tools": ["Jira;Trello;Asana", "Jira", "Trello;Asana"]})
+    assert MultiSelectResolver().detect(df) is True
+
+
+def test_multi_select_resolver_detects_pipe_column() -> None:
+    df = pd.DataFrame({"tools": ["Jira|Trello", "Jira", "Trello|Asana"]})
+    assert MultiSelectResolver().detect(df) is True
+
+
+def test_multi_select_resolver_does_not_fire_on_plain_text() -> None:
+    df = pd.DataFrame({"name": ["Alice", "Bob", "Carol"]})
+    assert MultiSelectResolver().detect(df) is False
+
+
+def test_multi_select_resolver_expands_semicolon_to_binary_columns() -> None:
+    df = pd.DataFrame({"tools": ["Jira;Trello", "Jira", "Trello"]})
+    result = MultiSelectResolver().apply(df)
+    assert "tools_jira" in result.columns
+    assert "tools_trello" in result.columns
+    assert "tools" not in result.columns
+    assert result["tools_jira"].tolist() == [1, 1, 0]
+    assert result["tools_trello"].tolist() == [1, 0, 1]
+
+
+def test_multi_select_resolver_expands_pipe_to_binary_columns() -> None:
+    df = pd.DataFrame({"tools": ["Jira|Trello|Asana", "Jira", "Asana"]})
+    result = MultiSelectResolver().apply(df)
+    assert "tools_jira" in result.columns
+    assert "tools_trello" in result.columns
+    assert "tools_asana" in result.columns
+    assert result["tools_asana"].tolist() == [1, 0, 1]
+
+
+def test_multi_select_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({"tools": ["Jira;Trello", "Jira"], "score": ["5", "4"]})
+    affected = MultiSelectResolver().get_affected_columns(df)
+    assert affected == ["tools"]
+    assert "score" not in affected
+
+
+def test_engine_logs_multi_select_resolver() -> None:
+    df = pd.DataFrame({"tools": ["Jira;Trello", "Asana", "Jira;Asana"]})
+    engine = ResolverEngine([MultiSelectResolver()])
+    _, log = engine.run(df)
+    assert len(log) == 1
+    assert log[0]["resolver"] == "MultiSelectResolver"
+    assert "tools" in log[0]["affected_columns"]
+
+
+def test_multi_select_resolver_does_not_fire_on_free_text_with_semicolons() -> None:
+    # Tokens like "development phase" contain internal spaces — must be rejected.
+    df = pd.DataFrame({"feedback": ["Research; development phase", "Analysis; design phase"]})
+    assert MultiSelectResolver().detect(df) is False
+
+
+def test_multi_select_resolver_fires_on_valid_token_list() -> None:
+    # Each token is a single word with no internal spaces — valid multi-select.
+    df = pd.DataFrame({"tools": ["Jira;Trello;Asana", "Jira", "Asana"]})
+    assert MultiSelectResolver().detect(df) is True
+
+
+def test_pipeline_expands_multi_select_column() -> None:
+    content = _make_csv_bytes(
+        ("id", "tools"),
+        ("1", "Jira;Trello"),
+        ("2", "Asana"),
+        ("3", "Jira;Asana"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_multiselect.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert "tools_jira" in df_out.columns
+    assert "tools_trello" in df_out.columns
+    assert "tools_asana" in df_out.columns
+    assert "tools" not in df_out.columns
+
+
+# ---------------------------------------------------------------------------
+# DelimitedListResolver
+# ---------------------------------------------------------------------------
+
+def test_delimited_list_resolver_detects_comma_list_column() -> None:
+    df = pd.DataFrame({"categories": ["A,B,C", "A,B", "C"]})
+    assert DelimitedListResolver().detect(df) is True
+
+
+def test_delimited_list_resolver_does_not_fire_on_natural_language() -> None:
+    # Internal spaces in parts prevent detection
+    df = pd.DataFrame({"address": ["New York,Los Angeles", "Chicago,Houston"]})
+    # "New York" has an internal space → rejected
+    assert DelimitedListResolver().detect(df) is False
+
+
+def test_delimited_list_resolver_does_not_fire_on_plain_text() -> None:
+    df = pd.DataFrame({"name": ["Alice", "Bob", "Carol"]})
+    assert DelimitedListResolver().detect(df) is False
+
+
+def test_delimited_list_resolver_expands_to_binary_columns() -> None:
+    df = pd.DataFrame({"categories": ["A,B", "A", "B"]})
+    result = DelimitedListResolver().apply(df)
+    assert "categories_a" in result.columns
+    assert "categories_b" in result.columns
+    assert "categories" not in result.columns
+    assert result["categories_a"].tolist() == [1, 1, 0]
+    assert result["categories_b"].tolist() == [1, 0, 1]
+
+
+def test_delimited_list_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({"categories": ["A,B", "A"], "score": ["5", "4"]})
+    affected = DelimitedListResolver().get_affected_columns(df)
+    assert affected == ["categories"]
+    assert "score" not in affected
+
+
+def test_engine_logs_delimited_list_resolver() -> None:
+    df = pd.DataFrame({"categories": ["A,B,C", "A", "B,C"]})
+    engine = ResolverEngine([DelimitedListResolver()])
+    _, log = engine.run(df)
+    assert len(log) == 1
+    assert log[0]["resolver"] == "DelimitedListResolver"
+    assert "categories" in log[0]["affected_columns"]
+
+
+def test_pipeline_expands_delimited_list_column() -> None:
+    content = _make_csv_bytes(
+        ("id", "tags"),
+        ("1", "alpha,beta"),
+        ("2", "alpha"),
+        ("3", "beta,gamma"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_delimited.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert "tags_alpha" in df_out.columns
+    assert "tags_beta" in df_out.columns
+    assert "tags_gamma" in df_out.columns
+    assert "tags" not in df_out.columns
+
+
+# ---------------------------------------------------------------------------
+# MultiRowHeaderResolver
+# ---------------------------------------------------------------------------
+
+def test_multi_row_header_resolver_detects_metadata_row() -> None:
+    df = pd.DataFrame({
+        "Q1": ["Overall satisfaction with team coordination", "5", "4", "3"],
+        "Q2": ["Please rate your experience with tools", "4", "5", "3"],
+    })
+    assert MultiRowHeaderResolver().detect(df) is True
+
+
+def test_multi_row_header_resolver_does_not_fire_on_short_first_row() -> None:
+    df = pd.DataFrame({"Q1": ["5", "4", "3"], "Q2": ["4", "5", "3"]})
+    assert MultiRowHeaderResolver().detect(df) is False
+
+
+def test_multi_row_header_resolver_does_not_fire_on_small_dataframe() -> None:
+    df = pd.DataFrame({
+        "Q1": ["Overall satisfaction with team coordination", "5"],
+    })
+    assert MultiRowHeaderResolver().detect(df) is False  # fewer than 3 rows
+
+
+def test_multi_row_header_resolver_combines_headers_and_drops_row() -> None:
+    df = pd.DataFrame({
+        "Q1": ["Overall satisfaction with coordination", "5", "4"],
+        "Q2": ["Rate your experience with tools", "4", "5"],
+    })
+    result = MultiRowHeaderResolver().apply(df)
+    assert "q1_overall_satisfaction_with_coordination" in result.columns
+    assert "q2_rate_your_experience_with_tools" in result.columns
+    assert len(result) == 2  # metadata row was dropped
+
+
+def test_multi_row_header_resolver_resets_index() -> None:
+    df = pd.DataFrame({
+        "Q1": ["Overall satisfaction with team coordination", "5", "4", "3"],
+        "Q2": ["Please rate your experience with the tools", "4", "5", "3"],
+    })
+    result = MultiRowHeaderResolver().apply(df)
+    assert list(result.index) == [0, 1, 2]
+
+
+def test_multi_row_header_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({
+        "Q1": ["Overall satisfaction with coordination", "5", "4"],
+        "Q2": ["Rate your experience with tools", "4", "5"],
+    })
+    affected = MultiRowHeaderResolver().get_affected_columns(df)
+    assert set(affected) == {"Q1", "Q2"}
+
+
+def test_engine_logs_multi_row_header_resolver() -> None:
+    df = pd.DataFrame({
+        "Q1": ["Overall satisfaction with team coordination", "5", "4"],
+        "Q2": ["Please rate your experience with tools", "4", "5"],
+    })
+    engine = ResolverEngine([MultiRowHeaderResolver()])
+    _, log = engine.run(df)
+    assert len(log) == 1
+    assert log[0]["resolver"] == "MultiRowHeaderResolver"
+    assert log[0]["cols_before"] == 2
+
+
+# ---------------------------------------------------------------------------
+# CarryForwardResolver
+# ---------------------------------------------------------------------------
+
+def test_carry_forward_resolver_detects_not_displayed() -> None:
+    df = pd.DataFrame({"Q1": ["5", "Not displayed", "4"]})
+    assert CarryForwardResolver().detect(df) is True
+
+
+def test_carry_forward_resolver_detects_question_not_asked() -> None:
+    df = pd.DataFrame({"Q1": ["5", "Question not asked", "4"]})
+    assert CarryForwardResolver().detect(df) is True
+
+
+def test_carry_forward_resolver_detects_skipped() -> None:
+    df = pd.DataFrame({"Q1": ["5", "Skipped", "4"]})
+    assert CarryForwardResolver().detect(df) is True
+
+
+def test_carry_forward_resolver_detects_na_routing() -> None:
+    df = pd.DataFrame({"Q1": ["5", "N/A (routing)", "4"]})
+    assert CarryForwardResolver().detect(df) is True
+
+
+def test_carry_forward_resolver_does_not_fire_on_clean_data() -> None:
+    df = pd.DataFrame({"Q1": ["5", "4", "3"]})
+    assert CarryForwardResolver().detect(df) is False
+
+
+def test_carry_forward_resolver_does_not_fire_on_plain_na() -> None:
+    # Plain "N/A" (without routing suffix) must NOT be caught here;
+    # that is MissingValueResolver's domain.
+    df = pd.DataFrame({"Q1": ["5", "N/A", "4"]})
+    assert CarryForwardResolver().detect(df) is False
+
+
+def test_carry_forward_resolver_converts_all_artifacts_to_nan() -> None:
+    df = pd.DataFrame({
+        "Q1": ["5", "Not displayed", "Question not asked", "Skipped", "N/A (routing)"]
+    })
+    result = CarryForwardResolver().apply(df)
+    assert result["Q1"].isna().sum() == 4
+    assert result["Q1"].iloc[0] == "5"
+
+
+def test_carry_forward_resolver_is_case_insensitive() -> None:
+    df = pd.DataFrame({"Q1": ["NOT DISPLAYED", "SKIPPED", "5"]})
+    result = CarryForwardResolver().apply(df)
+    assert result["Q1"].isna().sum() == 2
+
+
+def test_carry_forward_resolver_get_affected_columns() -> None:
+    df = pd.DataFrame({"Q1": ["5", "Skipped"], "Q2": ["4", "4"]})
+    affected = CarryForwardResolver().get_affected_columns(df)
+    assert affected == ["Q1"]
+    assert "Q2" not in affected
+
+
+def test_engine_logs_carry_forward_resolver() -> None:
+    df = pd.DataFrame({"Q1": ["5", "Not displayed", "4"]})
+    engine = ResolverEngine([CarryForwardResolver()])
+    _, log = engine.run(df)
+    assert len(log) == 1
+    assert log[0]["resolver"] == "CarryForwardResolver"
+    assert "Q1" in log[0]["affected_columns"]
+
+
+def test_pipeline_converts_carry_forward_artifacts() -> None:
+    content = _make_csv_bytes(
+        ("id", "Q1", "Q2"),
+        ("1", "5", "Agree"),
+        ("2", "Not displayed", "Agree"),
+        ("3", "4", "Skipped"),
+    )
+    dataset_id, file_path = save_uploaded_file(content, "survey_carry_forward.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    df_out = pd.read_csv(result["artifacts"]["dataset"])
+    assert df_out["q1"].isna().sum() == 1
+    assert df_out["q2"].isna().sum() == 1

@@ -1,0 +1,14 @@
+[
+  {
+    "column_name": "id",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 3
+  },
+  {
+    "column_name": "agree",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 2
+  }
+]

@@ -19,13 +19,17 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
 
     Stages:
         1. Load     — parse CSV/XLSX into a DataFrame
-        2. Profile  — compute initial per-column statistics
-        3. Resolve  — run structural resolvers (Sprint-2+)
+        2. Resolve  — run all resolvers in registry order:
+                        BOMResolver → BlankColumnResolver → BlankRowResolver
+                        → HeaderNormalizerResolver → DuplicateColumnResolver
+                        → BooleanResolver → LikertScaleResolver → PercentResolver
+                        → NumericTextResolver → MissingValueResolver
+                        → MultiRowHeaderResolver → MultiSelectResolver
+                        → DelimitedListResolver → CarryForwardResolver
+        3. Profile  — rebuild Dataset descriptor and column schemas to reflect
+                      any rows/columns that resolvers removed or renamed
         4. Validate — assert structural requirements (fail-loud)
         5. Build    — write normalized_dataset.csv, report.md, schema.json
-
-    After the resolver stage the Dataset descriptor and column schemas are
-    rebuilt to reflect any rows/columns that resolvers removed or renamed.
 
     Returns a result dict on success.
     Raises ValueError (FDG prefix) on validation or resolver failure.
@@ -39,6 +43,7 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
     engine = ResolverEngine(get_default_resolvers())
     df, transformation_log = engine.run(df)
 
+    # --- Stage 3: Profile ----------------------------------------------------
     # Rebuild the Dataset descriptor and column schemas to match the resolved
     # DataFrame.  Resolvers may change row count, column count, or column names.
     dataset = Dataset(

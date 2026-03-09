@@ -1,0 +1,26 @@
+[
+  {
+    "column_name": "id",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 3
+  },
+  {
+    "column_name": "age",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 3
+  },
+  {
+    "column_name": "score",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 3
+  },
+  {
+    "column_name": "category",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 2
+  }
+]

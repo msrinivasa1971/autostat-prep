@@ -1,0 +1,20 @@
+[
+  {
+    "column_name": "project_score",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 2
+  },
+  {
+    "column_name": "q2",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 2
+  },
+  {
+    "column_name": "project_score_2",
+    "inferred_type": "TEXT",
+    "missing_ratio": 0.0,
+    "unique_values": 2
+  }
+]

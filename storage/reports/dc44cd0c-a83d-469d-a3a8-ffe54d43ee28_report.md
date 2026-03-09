@@ -1,0 +1,43 @@
+# AutoStat Prep — Normalization Report
+
+**Dataset ID:** dc44cd0c-a83d-469d-a3a8-ffe54d43ee28
+**Generated:** 2026-03-09 07:39:22 UTC
+**Pipeline version:** Sprint-2
+
+---
+
+## Summary
+
+| Field | Value |
+|---|---|
+| Row Count | 2 |
+| Column Count | 3 |
+| Resolvers Applied | 3 |
+
+---
+
+## Column Inventory
+
+| # | Column Name | Inferred Type | Missing Ratio | Unique Values |
+|---|---|---|---|---|
+| 1 | project_score | TEXT | 0.0000 | 2 |
+| 2 | q2 | TEXT | 0.0000 | 2 |
+| 3 | project_score_2 | TEXT | 0.0000 | 2 |
+
+---
+
+## Transformations Applied
+
+| Resolver | Details | Rows | Columns | Affected Columns |
+|---|---|---|---|---|
+| HeaderNormalizerResolver | Normalized column names to lowercase_with_underscores | 2→2 | 3→3 | N/A |
+| DuplicateColumnResolver | Renamed duplicate column names with numeric suffixes | 2→2 | 3→3 | N/A |
+| NumericTextResolver | Converted numeric text to numeric dtype | 2→2 | 3→3 | project_score, q2, project_score_2 |
+
+
+---
+
+## Notes
+
+- Column types inferred as `TEXT`. Full type inference arrives in Sprint-3.
+- Audit trail records pipeline version for reproducibility.
