@@ -1308,3 +1308,38 @@ def test_ignored_column_removed_from_preview() -> None:
 def test_invalid_override_type_rejected() -> None:
     with pytest.raises(ValueError, match="Invalid override_type"):
         ColumnOverride(dataset_id="x", column_name="col", override_type="NONSENSE")
+
+
+# ===========================================================================
+# Sprint-8 — Multi-User Backend tests
+# ===========================================================================
+
+from app.services.user_service import create_user, load_users
+from app.utils.file_storage import find_dataset_dir, find_raw_file
+from app.config import get_dataset_dir
+
+
+def test_dataset_stored_under_correct_user_directory() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey.csv", user_id="user_alpha")
+
+    assert "user_alpha" in str(file_path)
+    assert file_path.exists()
+    assert dataset_id in file_path.name
+
+
+def test_dataset_not_accessible_by_another_user() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, _ = save_uploaded_file(content, "survey.csv", user_id="user_beta")
+
+    assert find_raw_file(dataset_id, user_id="user_beta") is not None
+    assert find_raw_file(dataset_id, user_id="user_gamma") is None
+
+
+def test_user_creation_writes_users_json() -> None:
+    import uuid as _uuid
+    test_user_id = f"test-{_uuid.uuid4().hex[:8]}"
+    create_user(test_user_id, f"{test_user_id}@test.com")
+
+    users = load_users()
+    assert any(u.user_id == test_user_id for u in users)

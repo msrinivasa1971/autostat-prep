@@ -19,6 +19,7 @@ class Dataset:
     created_at: datetime = field(default_factory=_now_utc)
     dataset_hash: str = ""
     state: DatasetState = field(default_factory=lambda: DatasetState.UPLOADED)
+    user_id: str = "default"
 
     def transition(self, new_state: DatasetState) -> None:
         """

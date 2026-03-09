@@ -1,0 +1,157 @@
+You are implementing **Sprint-8: Multi-User Backend Support** for AutoStat Prep.
+
+Repository root:
+
+D:\projects\autostat-prep
+
+Sprint-1 through Sprint-7 are complete and stable.
+
+IMPORTANT RULES
+
+• Do NOT modify resolver logic.
+• Do NOT modify normalization pipeline behavior.
+• Do NOT add authentication UI.
+• Only implement backend user ownership and storage isolation.
+• All existing tests must continue to pass.
+
+---
+
+SPRINT-8 OBJECTIVE
+
+Enable the system to support **multiple users**.
+
+Datasets must be owned by users and stored separately.
+
+---
+
+USER MODEL
+
+Create:
+
+app/models/user.py
+
+Define:
+
+User dataclass
+
+Fields:
+
+user_id: str
+email: str
+created_at: datetime
+
+Users will be stored in:
+
+storage/users/users.json
+
+---
+
+DATASET MODEL UPDATE
+
+Modify Dataset model:
+
+Add field:
+
+user_id: str
+
+All datasets must belong to a user.
+
+---
+
+STORAGE STRUCTURE
+
+Replace current artifact storage layout with:
+
+storage/users/{user_id}/datasets/{dataset_id}/
+
+Inside each dataset directory store:
+
+raw dataset
+normalized dataset
+schema
+report
+trace
+overrides
+
+Update file_storage.py to write artifacts to this path.
+
+---
+
+UPLOAD CHANGE
+
+Upload must now include user_id.
+
+POST /prep/upload
+
+Accept:
+
+user_id
+dataset_file
+
+Save dataset under the correct user directory.
+
+---
+
+DATASET LIST PAGE
+
+Add UI route:
+
+GET /dashboard/{user_id}
+
+Display:
+
+dataset_id
+state
+preview link
+download links
+
+---
+
+ADMIN USER CREATION
+
+Create script:
+
+scripts/create_user.py
+
+Usage:
+
+python scripts/create_user.py user_id email
+
+Script should append new user to users.json.
+
+---
+
+TESTS
+
+Add tests verifying:
+
+dataset stored under correct user directory
+dataset cannot be accessed by another user
+user creation script writes users.json correctly
+
+All existing tests must continue to pass.
+
+---
+
+MANDATORY IMPLEMENTATION REPORT
+
+Provide report including:
+
+FILES CREATED
+FILES MODIFIED
+USER MODEL DESIGN
+STORAGE STRUCTURE
+UPLOAD CHANGES
+DASHBOARD ROUTE
+TEST COVERAGE
+RUN VERIFICATION
+
+---
+
+SUCCESS CRITERIA
+
+All existing tests pass.
+New user tests pass.
+Server runs successfully with:
+
+uvicorn app.main:app --reload

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from app.config import NORMALIZED_DIR, REPORTS_DIR, SCHEMAS_DIR, SCHEMA_VERSION
+from app.config import SCHEMA_VERSION, get_dataset_dir
 from app.models.dataset import Dataset
 from app.models.schema import ColumnSchema
 from app.utils.logging_config import get_logger
@@ -21,13 +21,14 @@ def build_artifacts(
     resolver_trace: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, str]:
     """
-    Write the four output artifacts and return their absolute paths.
+    Write the four output artifacts to the per-user dataset directory and
+    return their absolute paths.
 
-    Artifacts:
-        normalized_dataset.csv      → storage/normalized/
-        normalization_report.md     → storage/reports/
-        dataset_schema.json         → storage/schemas/
-        resolver_trace.json         → storage/reports/
+    Artifacts (all inside storage/users/{user_id}/datasets/{dataset_id}/):
+        normalized.csv
+        report.md
+        schema.json
+        resolver_trace.json
     """
     logger.info(f"Building artifacts for dataset {dataset.dataset_id}")
 
@@ -49,8 +50,14 @@ def build_artifacts(
 # Private writers
 # ---------------------------------------------------------------------------
 
+def _dataset_dir(dataset: Dataset) -> Path:
+    d = get_dataset_dir(dataset.user_id, dataset.dataset_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def _write_normalized_csv(dataset: Dataset, df: pd.DataFrame) -> Path:
-    path = NORMALIZED_DIR / f"{dataset.dataset_id}_normalized.csv"
+    path = _dataset_dir(dataset) / "normalized.csv"
     df.to_csv(path, index=False, encoding="utf-8")
     return path
 
@@ -60,7 +67,7 @@ def _write_report(
     schemas: List[ColumnSchema],
     transformation_log: List[Dict[str, Any]],
 ) -> Path:
-    path = REPORTS_DIR / f"{dataset.dataset_id}_report.md"
+    path = _dataset_dir(dataset) / "report.md"
     path.write_text(
         _build_report_content(dataset, schemas, transformation_log),
         encoding="utf-8",
@@ -69,7 +76,7 @@ def _write_report(
 
 
 def _write_schema(dataset: Dataset, schemas: List[ColumnSchema]) -> Path:
-    path = SCHEMAS_DIR / f"{dataset.dataset_id}_schema.json"
+    path = _dataset_dir(dataset) / "schema.json"
     columns = [
         {
             "column_name": s.column_name,
@@ -141,7 +148,7 @@ def _build_report_content(
 
 
 def _write_resolver_trace(dataset: Dataset, resolver_trace: List[Dict[str, Any]]) -> Path:
-    path = REPORTS_DIR / f"{dataset.dataset_id}_resolver_trace.json"
+    path = _dataset_dir(dataset) / "resolver_trace.json"
     path.write_text(json.dumps(resolver_trace, indent=2), encoding="utf-8")
     return path
 

@@ -15,7 +15,11 @@ from app.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, Any]:
+def run_normalization_pipeline(
+    dataset_id: str,
+    file_path: Path,
+    user_id: str = "default",
+) -> Dict[str, Any]:
     """
     Execute the normalization pipeline.
 
@@ -32,13 +36,13 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
         3. Profile  — rebuild Dataset descriptor and column schemas to reflect
                       any rows/columns that resolvers removed or renamed
         4. Validate — assert structural requirements (fail-loud)
-        5. Build    — write normalized_dataset.csv, report.md, schema.json,
-                      resolver_trace.json; transition state NORMALIZING → COMPLETE
+        5. Build    — write artifacts to storage/users/{user_id}/datasets/{dataset_id}/;
+                      transition state NORMALIZING → COMPLETE
 
     Returns a result dict on success.
     Raises ValueError (FDG prefix) on validation or resolver failure.
     """
-    logger.info(f"[Pipeline] START  dataset_id={dataset_id}")
+    logger.info(f"[Pipeline] START  dataset_id={dataset_id} user={user_id}")
 
     # --- Stage 1: Load -------------------------------------------------------
     dataset, df = load_dataset(dataset_id, file_path)
@@ -62,6 +66,7 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
         created_at=dataset.created_at,
         dataset_hash=dataset_hash,
         state=DatasetState.NORMALIZING,
+        user_id=user_id,
     )
     schemas = profile_dataset(dataset, df)
 
@@ -79,6 +84,7 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
 
     return {
         "dataset_id": dataset_id,
+        "user_id": user_id,
         "row_count": dataset.row_count,
         "column_count": dataset.column_count,
         "resolvers_applied": len(transformation_log),

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Dashboard{% endblock %}
+
+{% block content %}
+<h2>Dataset Dashboard</h2>
+<p><strong>User:</strong> <code>{{ user_id }}</code></p>
+
+{% if datasets %}
+<table>
+  <thead>
+    <tr>
+      <th>Dataset ID</th>
+      <th>State</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ds in datasets %}
+    <tr>
+      <td><code>{{ ds.dataset_id[:16] }}…</code></td>
+      <td><span class="status-{{ ds.state | lower }}">{{ ds.state }}</span></td>
+      <td>
+        <a href="{{ ds.preview_url }}">Preview</a>
+        &nbsp;·&nbsp;
+        <a href="{{ ds.overrides_url }}">Overrides</a>
+        &nbsp;·&nbsp;
+        <a href="{{ ds.download_normalized }}">CSV</a>
+        &nbsp;·&nbsp;
+        <a href="{{ ds.download_report }}">Report</a>
+        &nbsp;·&nbsp;
+        <a href="{{ ds.download_schema }}">Schema</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No datasets found for this user. <a href="/">Upload one →</a></p>
+{% endif %}
+{% endblock %}

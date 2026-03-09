@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.pipeline.normalization_pipeline import run_normalization_pipeline
@@ -14,7 +14,7 @@ from app.utils.logging_config import get_logger
 router = APIRouter(prefix="/prep", tags=["prep"])
 logger = get_logger(__name__)
 
-# In-memory job store: job_id → {status, dataset_id, artifacts?, error?}
+# In-memory job store: job_id → {status, dataset_id, user_id, artifacts?, error?}
 _jobs: Dict[str, Dict[str, Any]] = {}
 
 
@@ -23,23 +23,26 @@ _jobs: Dict[str, Dict[str, Any]] = {}
 # ---------------------------------------------------------------------------
 
 @router.post("/upload")
-async def upload_dataset(file: UploadFile = File(...)) -> JSONResponse:
+async def upload_dataset(
+    file: UploadFile = File(...),
+    user_id: str = Form(default="default"),
+) -> JSONResponse:
     """
-    Accept a CSV or XLSX file and store it in storage/raw/.
+    Accept a CSV or XLSX file and store it under the user's dataset directory.
 
     Returns dataset_id for use in subsequent endpoints.
     """
-    logger.info(f"Upload request: filename={file.filename}")
+    logger.info(f"Upload request: filename={file.filename} user={user_id}")
 
     content = await file.read()
 
     try:
-        dataset_id, _ = save_uploaded_file(content, file.filename or "upload")
+        dataset_id, _ = save_uploaded_file(content, file.filename or "upload", user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    logger.info(f"Upload complete: dataset_id={dataset_id}")
-    return JSONResponse({"dataset_id": dataset_id, "status": "uploaded"})
+    logger.info(f"Upload complete: dataset_id={dataset_id} user={user_id}")
+    return JSONResponse({"dataset_id": dataset_id, "user_id": user_id, "status": "uploaded"})
 
 
 # ---------------------------------------------------------------------------
@@ -47,11 +50,11 @@ async def upload_dataset(file: UploadFile = File(...)) -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 @router.get("/profile/{dataset_id}")
-def get_profile(dataset_id: str) -> JSONResponse:
+def get_profile(dataset_id: str, user_id: str = Query(default="default")) -> JSONResponse:
     """
     Return a column-level profile of an uploaded dataset.
     """
-    file_path = find_raw_file(dataset_id)
+    file_path = find_raw_file(dataset_id, user_id=user_id or None)
     if file_path is None:
         raise HTTPException(
             status_code=404,
@@ -92,6 +95,7 @@ def get_profile(dataset_id: str) -> JSONResponse:
 async def normalize_dataset(
     dataset_id: str,
     background_tasks: BackgroundTasks,
+    user_id: str = Query(default="default"),
 ) -> JSONResponse:
     """
     Start asynchronous normalization of an uploaded dataset.
@@ -99,7 +103,7 @@ async def normalize_dataset(
     Returns a job_id immediately; normalization runs in the background.
     Poll GET /prep/jobs/{job_id} for status and results.
     """
-    file_path = find_raw_file(dataset_id)
+    file_path = find_raw_file(dataset_id, user_id=user_id or None)
     if file_path is None:
         raise HTTPException(
             status_code=404,
@@ -107,10 +111,10 @@ async def normalize_dataset(
         )
 
     job_id = str(uuid.uuid4())
-    _jobs[job_id] = {"status": "NORMALIZING", "dataset_id": dataset_id}
-    background_tasks.add_task(_run_normalization_job, job_id, dataset_id, file_path)
+    _jobs[job_id] = {"status": "NORMALIZING", "dataset_id": dataset_id, "user_id": user_id}
+    background_tasks.add_task(_run_normalization_job, job_id, dataset_id, file_path, user_id)
 
-    logger.info(f"Normalization job queued: job_id={job_id} dataset_id={dataset_id}")
+    logger.info(f"Normalization job queued: job_id={job_id} dataset_id={dataset_id} user={user_id}")
     return JSONResponse({"job_id": job_id, "status": "NORMALIZING"})
 
 
@@ -135,13 +139,19 @@ def get_job_status(job_id: str) -> JSONResponse:
 # Background task helper
 # ---------------------------------------------------------------------------
 
-def _run_normalization_job(job_id: str, dataset_id: str, file_path: Path) -> None:
+def _run_normalization_job(
+    job_id: str,
+    dataset_id: str,
+    file_path: Path,
+    user_id: str = "default",
+) -> None:
     """Execute the normalization pipeline and update the job store."""
     try:
-        result: Dict[str, Any] = run_normalization_pipeline(dataset_id, file_path)
+        result: Dict[str, Any] = run_normalization_pipeline(dataset_id, file_path, user_id=user_id)
         _jobs[job_id] = {
             "status": "COMPLETE",
             "dataset_id": dataset_id,
+            "user_id": user_id,
             "row_count": result["row_count"],
             "column_count": result["column_count"],
             "resolvers_applied": result["resolvers_applied"],
@@ -153,6 +163,7 @@ def _run_normalization_job(job_id: str, dataset_id: str, file_path: Path) -> Non
         _jobs[job_id] = {
             "status": "FAILED",
             "dataset_id": dataset_id,
+            "user_id": user_id,
             "error": str(exc),
         }
         logger.error(f"Job {job_id} FAILED: {exc}")

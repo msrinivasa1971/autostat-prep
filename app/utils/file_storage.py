@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from typing import Optional, Tuple
 
-from app.config import RAW_DIR, ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES
+from app.config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES, USERS_STORAGE_DIR, get_dataset_dir
 from app.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -14,9 +14,13 @@ logger = get_logger(__name__)
 _INJECTION_CHARS = frozenset({"=", "+", "-", "@"})
 
 
-def save_uploaded_file(file_content: bytes, original_filename: str) -> Tuple[str, Path]:
+def save_uploaded_file(
+    file_content: bytes,
+    original_filename: str,
+    user_id: str = "default",
+) -> Tuple[str, Path]:
     """
-    Save raw uploaded bytes to storage/raw/.
+    Save raw uploaded bytes to storage/users/{user_id}/datasets/{dataset_id}/.
 
     Returns (dataset_id, dest_path).
     Raises ValueError for unsupported extensions, oversized files, or
@@ -37,22 +41,64 @@ def save_uploaded_file(file_content: bytes, original_filename: str) -> Tuple[str
         _check_formula_injection(file_content)
 
     dataset_id = str(uuid.uuid4())
-    dest_path = RAW_DIR / f"{dataset_id}{suffix}"
+    dataset_dir = get_dataset_dir(user_id, dataset_id)
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dataset_dir / f"{dataset_id}{suffix}"
     dest_path.write_bytes(file_content)
 
-    logger.info(f"Saved uploaded file as {dest_path.name} (dataset_id={dataset_id})")
+    logger.info(f"Saved uploaded file as {dest_path.name} (dataset_id={dataset_id}, user={user_id})")
     return dataset_id, dest_path
 
 
-def find_raw_file(dataset_id: str) -> Optional[Path]:
+def find_raw_file(dataset_id: str, user_id: Optional[str] = None) -> Optional[Path]:
     """
-    Locate the raw file for a given dataset_id regardless of extension.
+    Locate the raw file for a dataset.
+
+    If user_id is specified, look only in that user's directory.
+    Otherwise scan all user directories.
+    """
+    if user_id:
+        dataset_dir = get_dataset_dir(user_id, dataset_id)
+        for ext in ALLOWED_EXTENSIONS:
+            candidate = dataset_dir / f"{dataset_id}{ext}"
+            if candidate.exists():
+                return candidate
+        return None
+
+    # Scan all users
+    if not USERS_STORAGE_DIR.exists():
+        return None
+    for user_dir in sorted(USERS_STORAGE_DIR.iterdir()):
+        if not user_dir.is_dir():
+            continue
+        dataset_dir = user_dir / "datasets" / dataset_id
+        for ext in ALLOWED_EXTENSIONS:
+            candidate = dataset_dir / f"{dataset_id}{ext}"
+            if candidate.exists():
+                return candidate
+    return None
+
+
+def find_dataset_dir(dataset_id: str, user_id: Optional[str] = None) -> Optional[Path]:
+    """
+    Return the dataset directory for a given dataset_id.
+
+    If user_id is specified, look only in that user's directory.
+    Otherwise scan all users and return the first match.
     Returns None if not found.
     """
-    for ext in ALLOWED_EXTENSIONS:
-        candidate = RAW_DIR / f"{dataset_id}{ext}"
-        if candidate.exists():
-            return candidate
+    if user_id:
+        d = get_dataset_dir(user_id, dataset_id)
+        return d if d.exists() else None
+
+    if not USERS_STORAGE_DIR.exists():
+        return None
+    for user_dir in sorted(USERS_STORAGE_DIR.iterdir()):
+        if not user_dir.is_dir():
+            continue
+        d = user_dir / "datasets" / dataset_id
+        if d.exists():
+            return d
     return None
 
 

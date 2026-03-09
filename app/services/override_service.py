@@ -1,22 +1,22 @@
 """
 Override service — persist and retrieve column overrides for a dataset.
 
-Storage location: storage/overrides/{dataset_id}_overrides.json
+Storage location: storage/users/{user_id}/datasets/{dataset_id}/overrides.json
 """
 import json
 from pathlib import Path
 from typing import List
 
-from app.config import OVERRIDES_DIR
+from app.config import get_dataset_dir
 from app.models.overrides import ColumnOverride
 
 
-def load_overrides(dataset_id: str) -> List[ColumnOverride]:
+def load_overrides(dataset_id: str, user_id: str = "default") -> List[ColumnOverride]:
     """
     Load saved column overrides for a dataset.
     Returns an empty list if no overrides file exists.
     """
-    path = OVERRIDES_DIR / f"{dataset_id}_overrides.json"
+    path = get_dataset_dir(user_id, dataset_id) / "overrides.json"
     if not path.exists():
         return []
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -30,14 +30,19 @@ def load_overrides(dataset_id: str) -> List[ColumnOverride]:
     ]
 
 
-def save_overrides(dataset_id: str, overrides: List[ColumnOverride]) -> Path:
+def save_overrides(
+    dataset_id: str,
+    overrides: List[ColumnOverride],
+    user_id: str = "default",
+) -> Path:
     """
-    Persist column overrides to storage/overrides/{dataset_id}_overrides.json.
+    Persist column overrides to the dataset directory.
 
     Returns the path to the written file.
     """
-    OVERRIDES_DIR.mkdir(parents=True, exist_ok=True)
-    path = OVERRIDES_DIR / f"{dataset_id}_overrides.json"
+    d = get_dataset_dir(user_id, dataset_id)
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / "overrides.json"
     payload = {
         "dataset_id": dataset_id,
         "overrides": [
