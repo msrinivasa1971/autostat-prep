@@ -13,4 +13,6 @@ ALLOWED_EXTENSIONS: set = {".csv", ".xlsx"}
 MAX_FILE_SIZE_BYTES: int = 100 * 1024 * 1024  # 100 MB
 
 APP_TITLE: str = "AutoStat Prep"
-APP_VERSION: str = "1.0.0-sprint1"
+APP_VERSION: str = "1.0.0-sprint5"
+
+SCHEMA_VERSION: str = "1.0"

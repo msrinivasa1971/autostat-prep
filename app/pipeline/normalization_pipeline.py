@@ -2,12 +2,14 @@ from pathlib import Path
 from typing import Any, Dict
 
 from app.models.dataset import Dataset
+from app.models.state import DatasetState
 from app.resolvers.resolver_engine import ResolverEngine
 from app.resolvers.resolver_registry import get_default_resolvers
 from app.services.artifact_builder import build_artifacts
 from app.services.dataset_loader import load_dataset
 from app.services.profiler import profile_dataset
 from app.services.validator import validate_dataset
+from app.utils.file_storage import compute_file_hash
 from app.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -18,7 +20,8 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
     Execute the normalization pipeline.
 
     Stages:
-        1. Load     — parse CSV/XLSX into a DataFrame
+        1. Load     — parse CSV/XLSX into a DataFrame; compute SHA-256 hash;
+                      transition dataset state UPLOADED → NORMALIZING
         2. Resolve  — run all resolvers in registry order:
                         BOMResolver → BlankColumnResolver → BlankRowResolver
                         → HeaderNormalizerResolver → DuplicateColumnResolver
@@ -29,7 +32,8 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
         3. Profile  — rebuild Dataset descriptor and column schemas to reflect
                       any rows/columns that resolvers removed or renamed
         4. Validate — assert structural requirements (fail-loud)
-        5. Build    — write normalized_dataset.csv, report.md, schema.json
+        5. Build    — write normalized_dataset.csv, report.md, schema.json,
+                      resolver_trace.json; transition state NORMALIZING → COMPLETE
 
     Returns a result dict on success.
     Raises ValueError (FDG prefix) on validation or resolver failure.
@@ -38,6 +42,8 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
 
     # --- Stage 1: Load -------------------------------------------------------
     dataset, df = load_dataset(dataset_id, file_path)
+    dataset_hash = compute_file_hash(file_path)
+    dataset.transition(DatasetState.NORMALIZING)
 
     # --- Stage 2: Resolve ----------------------------------------------------
     engine = ResolverEngine(get_default_resolvers())
@@ -54,6 +60,8 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
         column_count=len(df.columns),
         columns=list(df.columns),
         created_at=dataset.created_at,
+        dataset_hash=dataset_hash,
+        state=DatasetState.NORMALIZING,
     )
     schemas = profile_dataset(dataset, df)
 
@@ -62,6 +70,7 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
 
     # --- Stage 5: Build artifacts --------------------------------------------
     artifacts = build_artifacts(dataset, df, schemas, transformation_log, resolver_trace)
+    dataset.transition(DatasetState.COMPLETE)
 
     logger.info(
         f"[Pipeline] COMPLETE dataset_id={dataset_id} "
@@ -73,5 +82,7 @@ def run_normalization_pipeline(dataset_id: str, file_path: Path) -> Dict[str, An
         "row_count": dataset.row_count,
         "column_count": dataset.column_count,
         "resolvers_applied": len(transformation_log),
+        "dataset_hash": dataset_hash,
+        "state": dataset.state.value,
         "artifacts": artifacts,
     }

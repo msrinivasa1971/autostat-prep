@@ -1,0 +1,191 @@
+You are implementing **Sprint-5: Service Infrastructure** for AutoStat Prep.
+
+Repository root:
+
+D:\projects\autostat-prep
+
+Sprint-1 through Sprint-4 and the Resolver Execution Trace are complete and stable.
+
+IMPORTANT RULES
+
+• Do NOT modify resolver logic.
+• Do NOT change existing pipeline behaviour.
+• All existing tests must continue to pass.
+• Only implement the infrastructure listed below.
+• Maintain backward compatibility for API endpoints already implemented.
+
+---
+
+SPRINT-5 OBJECTIVE
+
+Upgrade AutoStat Prep from a simple processing pipeline into a **robust service layer**.
+
+The sprint introduces:
+
+• dataset hashing
+• dataset state machine
+• asynchronous normalization jobs
+• schema versioning
+• upload security validation
+
+No additional data-processing logic should be added.
+
+---
+
+FEATURE 1 — DATASET HASHING
+
+Compute SHA-256 hash of the uploaded dataset file.
+
+Implementation requirements:
+
+• Hash must be computed immediately after upload.
+• Use streaming hashing (avoid loading entire file in memory).
+• Store hash in Dataset model metadata.
+
+Add to normalization report:
+
+dataset_hash
+
+Example:
+
+{
+"dataset_hash": "b1e2c3..."
+}
+
+---
+
+FEATURE 2 — DATASET STATE MACHINE
+
+Define dataset lifecycle states:
+
+UPLOADED
+NORMALIZING
+COMPLETE
+FAILED
+
+Implementation rules:
+
+• State stored in Dataset object.
+• State transitions must be deterministic.
+
+Valid transitions:
+
+UPLOADED → NORMALIZING
+NORMALIZING → COMPLETE
+NORMALIZING → FAILED
+
+Invalid transitions must raise an error.
+
+---
+
+FEATURE 3 — ASYNC NORMALIZATION JOBS
+
+Normalization must run asynchronously.
+
+Modify:
+
+POST /prep/normalize
+
+Behavior:
+
+• Immediately return a job_id.
+• Start normalization in a background task.
+
+Add endpoint:
+
+GET /prep/jobs/{job_id}
+
+Response example:
+
+{
+"job_id": "...",
+"status": "NORMALIZING"
+}
+
+or
+
+{
+"job_id": "...",
+"status": "COMPLETE"
+}
+
+---
+
+FEATURE 4 — SCHEMA VERSIONING
+
+Add a version field to dataset_schema.json.
+
+Example:
+
+{
+"schema_version": "1.0",
+"columns": [...]
+}
+
+Implementation rule:
+
+• Schema version constant defined in config.py.
+
+---
+
+FEATURE 5 — UPLOAD SECURITY
+
+Add validation for uploaded files.
+
+Checks required:
+
+1. Maximum file size (configurable constant).
+2. File type validation (CSV/XLSX only).
+3. Prevent CSV formula injection.
+
+Reject cells starting with:
+
+=
++
+-
+
+@
+
+Return clear validation error if detected.
+
+---
+
+TESTS
+
+Extend tests/test_pipeline.py and create new tests if needed.
+
+Verify:
+
+• dataset_hash is generated
+• state transitions follow rules
+• async job returns job_id
+• GET /jobs/{job_id} reports correct status
+• upload validation rejects malicious cells
+
+All existing tests must pass unchanged.
+
+---
+
+MANDATORY IMPLEMENTATION REPORT
+
+After implementation produce a structured report including:
+
+FILES CREATED
+FILES MODIFIED
+DATASET HASH IMPLEMENTATION
+STATE MACHINE DESIGN
+ASYNC JOB ARCHITECTURE
+SCHEMA VERSIONING CHANGE
+SECURITY CHECK IMPLEMENTATION
+TEST COVERAGE SUMMARY
+RUN VERIFICATION
+
+---
+
+SUCCESS CRITERIA
+
+All existing tests pass.
+New infrastructure tests pass.
+Server runs with:
+
+uvicorn app.main:app --reload

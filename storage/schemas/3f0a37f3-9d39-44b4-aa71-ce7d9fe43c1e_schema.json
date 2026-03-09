@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "columns": [
+    {
+      "column_name": "id",
+      "inferred_type": "TEXT",
+      "missing_ratio": 0.0,
+      "unique_values": 3
+    },
+    {
+      "column_name": "q1",
+      "inferred_type": "TEXT",
+      "missing_ratio": 0.3333,
+      "unique_values": 2
+    },
+    {
+      "column_name": "q2",
+      "inferred_type": "TEXT",
+      "missing_ratio": 0.3333,
+      "unique_values": 1
+    }
+  ]
+}

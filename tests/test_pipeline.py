@@ -85,7 +85,7 @@ def test_schema_json_contains_all_columns() -> None:
     result = run_normalization_pipeline(dataset_id, file_path)
 
     schema = json.loads(Path(result["artifacts"]["schema"]).read_text(encoding="utf-8"))
-    schema_col_names = [s["column_name"] for s in schema]
+    schema_col_names = [s["column_name"] for s in schema["columns"]]
     assert schema_col_names == list(SAMPLE_HEADER)
 
 
@@ -97,7 +97,7 @@ def test_schema_json_inferred_type_is_text() -> None:
     result = run_normalization_pipeline(dataset_id, file_path)
 
     schema = json.loads(Path(result["artifacts"]["schema"]).read_text(encoding="utf-8"))
-    for col in schema:
+    for col in schema["columns"]:
         assert col["inferred_type"] == "TEXT", (
             f"Column '{col['column_name']}' should be TEXT in Sprint-1, "
             f"got '{col['inferred_type']}'"
@@ -1019,3 +1019,193 @@ def test_pipeline_converts_carry_forward_artifacts() -> None:
     df_out = pd.read_csv(result["artifacts"]["dataset"])
     assert df_out["q1"].isna().sum() == 1
     assert df_out["q2"].isna().sum() == 1
+
+
+# ===========================================================================
+# Sprint-5 — Service Infrastructure tests
+# ===========================================================================
+
+import json as _json
+
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.models.state import DatasetState
+from app.models.dataset import Dataset
+
+
+# ---------------------------------------------------------------------------
+# Feature 1 — Dataset Hashing
+# ---------------------------------------------------------------------------
+
+def test_pipeline_produces_dataset_hash() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_hash.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+    assert "dataset_hash" in result
+    assert len(result["dataset_hash"]) == 64   # SHA-256 hex digest = 64 chars
+
+
+def test_dataset_hash_is_hex() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_hash2.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+    assert all(c in "0123456789abcdef" for c in result["dataset_hash"])
+
+
+def test_report_contains_dataset_hash() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_hash_report.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+    report = Path(result["artifacts"]["report"]).read_text(encoding="utf-8")
+    assert result["dataset_hash"] in report
+
+
+# ---------------------------------------------------------------------------
+# Feature 2 — Dataset State Machine
+# ---------------------------------------------------------------------------
+
+def _make_dataset(**kwargs) -> Dataset:
+    defaults = dict(
+        dataset_id="test",
+        file_path="/dev/null",
+        row_count=0,
+        column_count=0,
+        columns=[],
+    )
+    defaults.update(kwargs)
+    return Dataset(**defaults)
+
+
+def test_state_initial_is_uploaded() -> None:
+    ds = _make_dataset()
+    assert ds.state == DatasetState.UPLOADED
+
+
+def test_state_transition_uploaded_to_normalizing() -> None:
+    ds = _make_dataset()
+    ds.transition(DatasetState.NORMALIZING)
+    assert ds.state == DatasetState.NORMALIZING
+
+
+def test_state_transition_normalizing_to_complete() -> None:
+    ds = _make_dataset()
+    ds.transition(DatasetState.NORMALIZING)
+    ds.transition(DatasetState.COMPLETE)
+    assert ds.state == DatasetState.COMPLETE
+
+
+def test_state_transition_normalizing_to_failed() -> None:
+    ds = _make_dataset()
+    ds.transition(DatasetState.NORMALIZING)
+    ds.transition(DatasetState.FAILED)
+    assert ds.state == DatasetState.FAILED
+
+
+def test_state_invalid_transition_raises() -> None:
+    ds = _make_dataset()
+    with pytest.raises(ValueError, match="Invalid state transition"):
+        ds.transition(DatasetState.COMPLETE)   # UPLOADED → COMPLETE is not allowed
+
+
+def test_state_invalid_transition_from_complete_raises() -> None:
+    ds = _make_dataset()
+    ds.transition(DatasetState.NORMALIZING)
+    ds.transition(DatasetState.COMPLETE)
+    with pytest.raises(ValueError, match="Invalid state transition"):
+        ds.transition(DatasetState.NORMALIZING)  # COMPLETE → NORMALIZING is not allowed
+
+
+def test_pipeline_returns_complete_state() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_state.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+    assert result["state"] == "COMPLETE"
+
+
+# ---------------------------------------------------------------------------
+# Feature 3 — Async Normalization Jobs
+# ---------------------------------------------------------------------------
+
+def test_normalize_returns_job_id() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    with TestClient(app) as client:
+        upload = client.post(
+            "/prep/upload",
+            files={"file": ("survey.csv", content, "text/csv")},
+        )
+        assert upload.status_code == 200
+        dataset_id = upload.json()["dataset_id"]
+
+        norm = client.post(f"/prep/normalize/{dataset_id}")
+        assert norm.status_code == 200
+        body = norm.json()
+        assert "job_id" in body
+        assert body["status"] == "NORMALIZING"
+
+
+def test_job_status_complete_after_normalize() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    with TestClient(app) as client:
+        upload = client.post(
+            "/prep/upload",
+            files={"file": ("survey.csv", content, "text/csv")},
+        )
+        dataset_id = upload.json()["dataset_id"]
+        norm = client.post(f"/prep/normalize/{dataset_id}")
+        job_id = norm.json()["job_id"]
+    # After the context manager exits background tasks have completed.
+    with TestClient(app) as client:
+        status = client.get(f"/prep/jobs/{job_id}")
+        assert status.status_code == 200
+        assert status.json()["status"] == "COMPLETE"
+
+
+def test_get_job_status_unknown_id_returns_404() -> None:
+    with TestClient(app) as client:
+        response = client.get("/prep/jobs/nonexistent-job-id")
+        assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Feature 4 — Schema Versioning
+# ---------------------------------------------------------------------------
+
+def test_schema_has_version_field() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, file_path = save_uploaded_file(content, "survey_schema_ver.csv")
+    result = run_normalization_pipeline(dataset_id, file_path)
+
+    schema = _json.loads(Path(result["artifacts"]["schema"]).read_text(encoding="utf-8"))
+    assert "schema_version" in schema
+    assert schema["schema_version"] == "1.0"
+    assert "columns" in schema
+
+
+# ---------------------------------------------------------------------------
+# Feature 5 — Upload Security (formula injection)
+# ---------------------------------------------------------------------------
+
+def test_upload_rejects_equals_formula_injection() -> None:
+    content = _make_csv_bytes(
+        ("id", "formula"),
+        ("1", "=SUM(A1:A10)"),
+        ("2", "normal"),
+    )
+    with pytest.raises(ValueError, match="formula injection"):
+        save_uploaded_file(content, "inject.csv")
+
+
+def test_upload_rejects_at_formula_injection() -> None:
+    content = _make_csv_bytes(
+        ("id", "val"),
+        ("1", "@SUM(A1)"),
+    )
+    with pytest.raises(ValueError, match="formula injection"):
+        save_uploaded_file(content, "inject_at.csv")
+
+
+def test_upload_accepts_clean_csv() -> None:
+    content = _make_csv_bytes(SAMPLE_HEADER, *SAMPLE_ROWS)
+    dataset_id, path = save_uploaded_file(content, "clean.csv")
+    assert dataset_id  # no exception raised

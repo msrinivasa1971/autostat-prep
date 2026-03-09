@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from app.config import NORMALIZED_DIR, REPORTS_DIR, SCHEMAS_DIR
+from app.config import NORMALIZED_DIR, REPORTS_DIR, SCHEMAS_DIR, SCHEMA_VERSION
 from app.models.dataset import Dataset
 from app.models.schema import ColumnSchema
 from app.utils.logging_config import get_logger
@@ -70,7 +70,7 @@ def _write_report(
 
 def _write_schema(dataset: Dataset, schemas: List[ColumnSchema]) -> Path:
     path = SCHEMAS_DIR / f"{dataset.dataset_id}_schema.json"
-    payload = [
+    columns = [
         {
             "column_name": s.column_name,
             "inferred_type": s.column_type,
@@ -79,6 +79,10 @@ def _write_schema(dataset: Dataset, schemas: List[ColumnSchema]) -> Path:
         }
         for s in schemas
     ]
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "columns": columns,
+    }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path
 
@@ -94,8 +98,9 @@ def _build_report_content(
 # AutoStat Prep — Normalization Report
 
 **Dataset ID:** {dataset.dataset_id}
+**Dataset Hash:** {dataset.dataset_hash or "N/A"}
 **Generated:** {generated_at}
-**Pipeline version:** Sprint-2
+**Pipeline version:** Sprint-5
 
 ---
 

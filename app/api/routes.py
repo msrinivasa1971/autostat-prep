@@ -1,6 +1,8 @@
+import uuid
+from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.pipeline.normalization_pipeline import run_normalization_pipeline
@@ -11,6 +13,9 @@ from app.utils.logging_config import get_logger
 
 router = APIRouter(prefix="/prep", tags=["prep"])
 logger = get_logger(__name__)
+
+# In-memory job store: job_id → {status, dataset_id, artifacts?, error?}
+_jobs: Dict[str, Dict[str, Any]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -80,13 +85,19 @@ def get_profile(dataset_id: str) -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
-# POST /prep/normalize/{dataset_id}
+# POST /prep/normalize/{dataset_id}  (async — returns job_id immediately)
 # ---------------------------------------------------------------------------
 
 @router.post("/normalize/{dataset_id}")
-def normalize_dataset(dataset_id: str) -> JSONResponse:
+async def normalize_dataset(
+    dataset_id: str,
+    background_tasks: BackgroundTasks,
+) -> JSONResponse:
     """
-    Run the full normalization pipeline and write all output artifacts.
+    Start asynchronous normalization of an uploaded dataset.
+
+    Returns a job_id immediately; normalization runs in the background.
+    Poll GET /prep/jobs/{job_id} for status and results.
     """
     file_path = find_raw_file(dataset_id)
     if file_path is None:
@@ -95,18 +106,53 @@ def normalize_dataset(dataset_id: str) -> JSONResponse:
             detail=f"Dataset not found: {dataset_id}",
         )
 
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {"status": "NORMALIZING", "dataset_id": dataset_id}
+    background_tasks.add_task(_run_normalization_job, job_id, dataset_id, file_path)
+
+    logger.info(f"Normalization job queued: job_id={job_id} dataset_id={dataset_id}")
+    return JSONResponse({"job_id": job_id, "status": "NORMALIZING"})
+
+
+# ---------------------------------------------------------------------------
+# GET /prep/jobs/{job_id}
+# ---------------------------------------------------------------------------
+
+@router.get("/jobs/{job_id}")
+def get_job_status(job_id: str) -> JSONResponse:
+    """
+    Return the current status of a normalization job.
+
+    Status values: NORMALIZING, COMPLETE, FAILED
+    """
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    return JSONResponse({"job_id": job_id, **job})
+
+
+# ---------------------------------------------------------------------------
+# Background task helper
+# ---------------------------------------------------------------------------
+
+def _run_normalization_job(job_id: str, dataset_id: str, file_path: Path) -> None:
+    """Execute the normalization pipeline and update the job store."""
     try:
         result: Dict[str, Any] = run_normalization_pipeline(dataset_id, file_path)
-    except ValueError as exc:
-        # FDG validation failures → 422 Unprocessable Entity
-        raise HTTPException(status_code=422, detail=str(exc))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
-
-    return JSONResponse(
-        {
-            "dataset_id": result["dataset_id"],
-            "status": "normalized",
+        _jobs[job_id] = {
+            "status": "COMPLETE",
+            "dataset_id": dataset_id,
+            "row_count": result["row_count"],
+            "column_count": result["column_count"],
+            "resolvers_applied": result["resolvers_applied"],
+            "dataset_hash": result["dataset_hash"],
             "artifacts": result["artifacts"],
         }
-    )
+        logger.info(f"Job {job_id} COMPLETE")
+    except Exception as exc:
+        _jobs[job_id] = {
+            "status": "FAILED",
+            "dataset_id": dataset_id,
+            "error": str(exc),
+        }
+        logger.error(f"Job {job_id} FAILED: {exc}")
