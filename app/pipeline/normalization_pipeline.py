@@ -6,6 +6,7 @@ from app.models.state import DatasetState
 from app.resolvers.resolver_engine import ResolverEngine
 from app.resolvers.resolver_registry import get_default_resolvers
 from app.services.artifact_builder import build_artifacts
+from app.services.autostat_client import send_dataset_for_analysis
 from app.services.dataset_loader import load_dataset
 from app.services.profiler import profile_dataset
 from app.services.validator import validate_dataset
@@ -76,6 +77,16 @@ def run_normalization_pipeline(
     # --- Stage 5: Build artifacts --------------------------------------------
     artifacts = build_artifacts(dataset, df, schemas, transformation_log, resolver_trace)
     dataset.transition(DatasetState.COMPLETE)
+
+    # --- Stage 6: AutoStat (optional) ----------------------------------------
+    # Skipped silently when AUTOSTAT_API_URL is not configured.
+    try:
+        send_dataset_for_analysis(dataset_id, user_id=user_id)
+        logger.info(f"[Pipeline] AutoStat analysis sent for dataset_id={dataset_id}")
+    except RuntimeError:
+        pass  # AUTOSTAT_API_URL not configured — expected in most deployments
+    except Exception as exc:
+        logger.warning(f"[Pipeline] AutoStat call failed (non-fatal): {exc}")
 
     logger.info(
         f"[Pipeline] COMPLETE dataset_id={dataset_id} "
