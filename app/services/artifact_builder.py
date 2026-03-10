@@ -19,6 +19,7 @@ def build_artifacts(
     schemas: List[ColumnSchema],
     transformation_log: Optional[List[Dict[str, Any]]] = None,
     resolver_trace: Optional[List[Dict[str, Any]]] = None,
+    column_types: Optional[Dict[str, str]] = None,
 ) -> Dict[str, str]:
     """
     Write the four output artifacts to the per-user dataset directory and
@@ -34,7 +35,7 @@ def build_artifacts(
 
     csv_path = _write_normalized_csv(dataset, df)
     report_path = _write_report(dataset, schemas, transformation_log or [])
-    schema_path = _write_schema(dataset, schemas)
+    schema_path = _write_schema(dataset, schemas, column_types or {})
     trace_path = _write_resolver_trace(dataset, resolver_trace or [])
 
     logger.info(f"Artifacts generated for dataset {dataset.dataset_id}")
@@ -75,7 +76,11 @@ def _write_report(
     return path
 
 
-def _write_schema(dataset: Dataset, schemas: List[ColumnSchema]) -> Path:
+def _write_schema(
+    dataset: Dataset,
+    schemas: List[ColumnSchema],
+    column_types: Dict[str, str],
+) -> Path:
     path = _dataset_dir(dataset) / "schema.json"
     columns = [
         {
@@ -88,6 +93,8 @@ def _write_schema(dataset: Dataset, schemas: List[ColumnSchema]) -> Path:
     ]
     payload = {
         "schema_version": SCHEMA_VERSION,
+        "dataset_hash": dataset.dataset_hash or "",
+        "column_types": column_types,
         "columns": columns,
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

@@ -10,6 +10,7 @@ from app.services.autostat_client import send_dataset_for_analysis
 from app.services.dataset_loader import load_dataset
 from app.services.profiler import profile_dataset
 from app.services.validator import validate_dataset
+from app.services.variable_type_detector import detect_variable_types
 from app.utils.file_storage import compute_file_hash
 from app.utils.logging_config import get_logger
 
@@ -74,8 +75,14 @@ def run_normalization_pipeline(
     # --- Stage 4: Validate ---------------------------------------------------
     validate_dataset(dataset, df)
 
+    # --- Stage 4b: Detect variable types ------------------------------------
+    type_detection = detect_variable_types(df)
+    column_types = type_detection["column_types"]
+
     # --- Stage 5: Build artifacts --------------------------------------------
-    artifacts = build_artifacts(dataset, df, schemas, transformation_log, resolver_trace)
+    artifacts = build_artifacts(
+        dataset, df, schemas, transformation_log, resolver_trace, column_types
+    )
     dataset.transition(DatasetState.COMPLETE)
 
     # --- Stage 6: AutoStat (optional) ----------------------------------------
