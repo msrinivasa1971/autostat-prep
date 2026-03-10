@@ -1,16 +1,21 @@
 from pathlib import Path
 
 # Repository root — two levels up from app/config.py
-BASE_DIR: Path = Path(__file__).resolve().parent.parent
+
+BASE_DIR: Path = Path(**file**).resolve().parent.parent
 
 STORAGE_DIR: Path = BASE_DIR / "storage"
+
 # Legacy flat directories (kept for reference; primary storage is now per-user)
+
 RAW_DIR: Path = STORAGE_DIR / "raw"
 NORMALIZED_DIR: Path = STORAGE_DIR / "normalized"
 REPORTS_DIR: Path = STORAGE_DIR / "reports"
 SCHEMAS_DIR: Path = STORAGE_DIR / "schemas"
 OVERRIDES_DIR: Path = STORAGE_DIR / "overrides"
+
 # Per-user storage root
+
 USERS_STORAGE_DIR: Path = STORAGE_DIR / "users"
 USERS_JSON: Path = USERS_STORAGE_DIR / "users.json"
 
@@ -25,11 +30,30 @@ APP_VERSION: str = "1.0.0-sprint9"
 
 SCHEMA_VERSION: str = "1.2"
 
-# AutoStat integration — set AUTOSTAT_API_URL to enable; leave empty to disable.
-AUTOSTAT_API_URL: str = ""      # e.g. "http://localhost:9000"
-AUTOSTAT_API_TIMEOUT: int = 30  # seconds
+# ----------------------------------------------------------
 
+# AutoStat integration
+
+# ----------------------------------------------------------
+
+# Endpoint for AutoStat machine-to-machine analysis
+
+AUTOSTAT_API_URL: str = "https://autostat-demo.onrender.com/api/v1/internal/analyze"
+
+# Shared API key (must match AUTOSTAT_INTERNAL_API_KEY on AutoStat backend)
+
+AUTOSTAT_API_KEY: str = "autostatprep-secret-2026"
+
+# Timeout for API requests (seconds)
+
+AUTOSTAT_API_TIMEOUT: int = 30
 
 def get_dataset_dir(user_id: str, dataset_id: str) -> Path:
-    """Return the per-dataset storage directory: storage/users/{user_id}/datasets/{dataset_id}/"""
-    return USERS_STORAGE_DIR / user_id / "datasets" / dataset_id
+"""
+Return the per-dataset storage directory:
+
+```
+storage/users/{user_id}/datasets/{dataset_id}/
+"""
+return USERS_STORAGE_DIR / user_id / "datasets" / dataset_id
+```
