@@ -10,6 +10,9 @@ from typing import List
 import pandas as pd
 
 from app.resolvers.base_resolver import BaseResolver
+from app.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -174,8 +177,23 @@ class PercentResolver(BaseResolver):
         df = df.copy()
         for col in df.select_dtypes(include=['object']).columns:
             if self._is_percent_column(df[col]):
-                df[col] = df[col].astype(str).str.rstrip('%').astype(float) / 100
+                df[col] = df[col].apply(self._resolve_percent)
         return df
+
+    def _resolve_percent(self, value):
+        if value is None:
+            return None
+        value = str(value).strip()
+        if value == "" or value == "%" or value.upper() in ("NA", "N/A", "-"):
+            return None
+        value = value.replace("%", "").strip()
+        if value == "":
+            return None
+        try:
+            return float(value) / 100
+        except ValueError:
+            logger.warning(f"PercentResolver: could not convert {value!r} to float, treating as missing")
+            return None
 
     def get_affected_columns(self, df: pd.DataFrame) -> List[str]:
         affected = []
