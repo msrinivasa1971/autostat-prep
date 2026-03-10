@@ -1,0 +1,12 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Local datasets
+storage/
+
+# Test artifacts
+.pytest_cache/
+
+# Claude prompts
+prompts/

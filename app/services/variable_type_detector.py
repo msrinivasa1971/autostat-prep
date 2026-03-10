@@ -5,10 +5,11 @@ can choose appropriate tests.
 Detection priority (first matching rule wins):
 
   1. BINARY     — exactly 2 distinct non-null values (any dtype)
-  2. ORDINAL    — numeric, all values are integer-valued and form a subset of
-                  {1..5} or {1..7} (Likert scales)
-  3. CONTINUOUS — numeric dtype with more than 10 distinct values
-  4. CATEGORICAL — all remaining columns (object dtype, or sparse numeric)
+  2. ORDINAL    — numeric, all values are integer-valued, the unique values form
+                  a contiguous integer sequence, AND that sequence is a subset
+                  of a known ordinal range: {1..5}, {1..7}, or {0..10}
+  3. CONTINUOUS — numeric dtype with ≥ 3 distinct values
+  4. CATEGORICAL — all remaining columns (object dtype, or single-value numeric)
 """
 from typing import Dict
 
@@ -18,9 +19,12 @@ from app.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-_LIKERT_5 = frozenset({1, 2, 3, 4, 5})
-_LIKERT_7 = frozenset({1, 2, 3, 4, 5, 6, 7})
-_CONTINUOUS_THRESHOLD = 10
+# Known ordinal ranges checked in order; first match wins.
+_ORDINAL_RANGES = (
+    frozenset(range(1, 6)),    # {1, 2, 3, 4, 5}
+    frozenset(range(1, 8)),    # {1, 2, 3, 4, 5, 6, 7}
+    frozenset(range(0, 11)),   # {0, 1, 2, …, 10}
+)
 
 
 def detect_variable_types(df: pd.DataFrame) -> Dict[str, Dict[str, str]]:
@@ -58,38 +62,47 @@ def _detect_type(series: pd.Series) -> str:
     if non_null.empty:
         return "categorical"
 
-    unique_count = non_null.nunique()
-
     # Rule 1 — Binary
-    if unique_count == 2:
+    if non_null.nunique() == 2:
         return "binary"
 
     # Rules 2–3 apply to numeric columns only.
     if pd.api.types.is_numeric_dtype(series):
 
-        # Rule 2 — Ordinal (Likert)
-        if _is_likert(non_null):
+        # Rule 2 — Ordinal
+        if _is_ordinal(non_null):
             return "ordinal"
 
-        # Rule 3 — Continuous
-        if unique_count > _CONTINUOUS_THRESHOLD:
+        # Rule 3 — Continuous (≥ 3 distinct values, not already classified)
+        if non_null.nunique() >= 3:
             return "continuous"
 
-    # Rule 4 — Categorical (object dtype, or numeric with ≤ 10 unique values)
+    # Rule 4 — Categorical
     return "categorical"
 
 
-def _is_likert(non_null: pd.Series) -> bool:
+def _is_integer_series(series: pd.Series) -> bool:
+    """Return True when every non-null value is integer-valued (e.g. 3.0 → 3)."""
+    return series.dropna().apply(lambda v: float(v).is_integer()).all()
+
+
+def _is_contiguous(int_vals: frozenset) -> bool:
+    """Return True when the integer set forms a gap-free sequence."""
+    vals = sorted(int_vals)
+    return vals == list(range(vals[0], vals[-1] + 1))
+
+
+def _is_ordinal(non_null: pd.Series) -> bool:
     """
-    Return True when all values in *non_null* are integer-valued numbers
-    that form a subset of {1..5} or {1..7}.
+    Return True when:
+      - all values are integer-valued,
+      - the unique values form a contiguous integer range, and
+      - that range is a subset of a known ordinal scale.
     """
+    if not _is_integer_series(non_null):
+        return False
     try:
-        unique_floats = non_null.unique()
-        # All values must be whole numbers.
-        if not all(float(v) == int(float(v)) for v in unique_floats):
-            return False
-        int_vals = frozenset(int(float(v)) for v in unique_floats)
-        return int_vals <= _LIKERT_5 or int_vals <= _LIKERT_7
+        int_vals = frozenset(int(float(v)) for v in non_null.unique())
+        return _is_contiguous(int_vals) and any(int_vals <= r for r in _ORDINAL_RANGES)
     except (TypeError, ValueError):
         return False

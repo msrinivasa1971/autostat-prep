@@ -14,8 +14,13 @@ Resolver ordering is significant:
                                normalization can create duplicates
                                (e.g. "Project Score" and "Project_Score" both
                                become "project_score").
-  5.  DuplicateColumnResolver  Deduplicate AFTER normalization so that all
-                               post-normalization collisions are caught.
+  4b. SPSSColumnNameResolver   Enforce SPSS identifier constraints (max 64
+                               chars, [a-zA-Z0-9_] only, no leading digit)
+                               AFTER general normalization.
+  5.  DuplicateColumnResolver     Deduplicate AFTER normalization so that all
+                                  post-normalization name collisions are caught.
+  5b. DuplicateDataColumnResolver Drop columns whose row content is identical
+                                  to an earlier column (Google Forms duplicates).
   6.  BooleanResolver          Encoding: boolean text → 0/1.
   7.  LikertScaleResolver      Encoding: Likert text → 1–5.
   8.  PercentResolver          Encoding: "45%" → 0.45.
@@ -32,6 +37,8 @@ Resolver ordering is significant:
 from typing import List
 
 from app.resolvers.base_resolver import BaseResolver
+from app.resolvers.duplicate_column_resolver import DuplicateDataColumnResolver
+from app.resolvers.spss_column_name_resolver import SPSSColumnNameResolver
 from app.resolvers.encoding_resolvers import (
     BooleanResolver,
     LikertScaleResolver,
@@ -68,7 +75,9 @@ def get_default_resolvers() -> List[BaseResolver]:
         BlankColumnResolver(),
         BlankRowResolver(),
         HeaderNormalizerResolver(),
+        SPSSColumnNameResolver(),
         DuplicateColumnResolver(),
+        DuplicateDataColumnResolver(),
         # --- Encoding ---
         BooleanResolver(),
         LikertScaleResolver(),

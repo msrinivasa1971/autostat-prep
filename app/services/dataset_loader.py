@@ -12,6 +12,21 @@ logger = get_logger(__name__)
 # utf-8-sig handles BOM-prefixed files produced by Windows tools
 _CSV_READ_KWARGS = {"encoding": "utf-8-sig", "dtype": str, "keep_default_na": False}
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def sanitize_formula_injection(value):
+    """
+    Treat spreadsheet formula-like cell values as plain text by prepending a
+    single quote. This prevents formula injection rather than rejecting the file.
+    """
+    if value is None:
+        return value
+    s = str(value).strip()
+    if s.startswith(_FORMULA_PREFIXES):
+        return "'" + s
+    return value
+
 
 def load_dataset(dataset_id: str, file_path: Path) -> Tuple[Dataset, pd.DataFrame]:
     """
@@ -30,6 +45,8 @@ def load_dataset(dataset_id: str, file_path: Path) -> Tuple[Dataset, pd.DataFram
         df = pd.read_excel(file_path, engine="openpyxl", dtype=str, keep_default_na=False)
     else:
         raise ValueError(f"Unsupported file format: '{suffix}'")
+
+    df = df.apply(lambda col: col.map(sanitize_formula_injection))
 
     dataset = Dataset(
         dataset_id=dataset_id,

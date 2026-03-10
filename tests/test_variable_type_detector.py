@@ -55,9 +55,10 @@ class TestOrdinalDetection:
         assert _types(df)["rating"] == "ordinal"
 
     def test_likert_partial_range(self):
-        # {1, 3, 5} is a subset of {1..5} → ordinal
+        # {1, 3, 5} is a subset of {1..5} but NOT contiguous (gaps at 2, 4)
+        # → not ordinal; falls through to continuous (3 unique numeric values ≥ 3).
         df = pd.DataFrame({"q": [1, 3, 5, 1, 3]})
-        assert _types(df)["q"] == "ordinal"
+        assert _types(df)["q"] == "continuous"
 
     def test_likert_float_values(self):
         # Integer-valued floats like 1.0, 2.0, 3.0 should be recognised.
@@ -68,9 +69,9 @@ class TestOrdinalDetection:
         df = pd.DataFrame({"q": [1, 2, 3, None, 4, 5]})
         assert _types(df)["q"] == "ordinal"
 
-    def test_non_likert_range_not_ordinal(self):
-        # {1, 2, 3, 8, 9} is not a subset of either Likert set.
-        df = pd.DataFrame({"x": [1, 2, 3, 8, 9, 1, 2]})
+    def test_non_ordinal_range_not_ordinal(self):
+        # Values outside all ordinal ranges ({1..5}, {1..7}, {0..10}) → not ordinal.
+        df = pd.DataFrame({"x": [11, 22, 33, 44, 55, 11, 22]})
         assert _types(df)["x"] != "ordinal"
 
     def test_float_non_integer_not_ordinal(self):
@@ -92,9 +93,9 @@ class TestContinuousDetection:
         df = pd.DataFrame({"weight": [i * 0.7 for i in range(30)]})
         assert _types(df)["weight"] == "continuous"
 
-    def test_numeric_eleven_unique(self):
-        # Exactly 11 unique values → crosses the > 10 threshold.
-        df = pd.DataFrame({"x": list(range(11))})
+    def test_numeric_many_unique_outside_ordinal_range(self):
+        # Values outside all ordinal ranges, ≥ 3 unique → continuous.
+        df = pd.DataFrame({"x": list(range(12, 62))})  # {12..61}, 50 unique
         assert _types(df)["x"] == "continuous"
 
     def test_numeric_ten_unique_not_continuous(self):
@@ -112,10 +113,10 @@ class TestCategoricalDetection:
         df = pd.DataFrame({"country": ["US", "UK", "DE", "FR", "JP", "CA", "AU"]})
         assert _types(df)["country"] == "categorical"
 
-    def test_numeric_few_unique(self):
-        # 5 unique numeric values but NOT in Likert range → categorical.
+    def test_numeric_outside_ordinal_range(self):
+        # 5 unique numeric values outside all ordinal ranges → continuous.
         df = pd.DataFrame({"code": [10, 20, 30, 40, 50, 10, 20]})
-        assert _types(df)["code"] == "categorical"
+        assert _types(df)["code"] == "continuous"
 
     def test_object_dtype(self):
         df = pd.DataFrame({"notes": ["good", "bad", "ok", "good", "bad"]})

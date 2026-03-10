@@ -23,7 +23,7 @@ MAX_FILE_SIZE_BYTES: int = 100 * 1024 * 1024  # 100 MB
 APP_TITLE: str = "AutoStat Prep"
 APP_VERSION: str = "1.0.0-sprint9"
 
-SCHEMA_VERSION: str = "1.1"
+SCHEMA_VERSION: str = "1.2"
 
 # AutoStat integration — set AUTOSTAT_API_URL to enable; leave empty to disable.
 AUTOSTAT_API_URL: str = ""      # e.g. "http://localhost:9000"
