@@ -36,17 +36,13 @@ SCHEMA_VERSION: str = "1.2"
 
 # ----------------------------------------------------------
 
-# Endpoint for AutoStat machine-to-machine analysis
-
 AUTOSTAT_API_URL: str = "https://autostat-demo.onrender.com/api/v1/internal/analyze"
 
-# Shared API key (must match AUTOSTAT_INTERNAL_API_KEY on AutoStat backend)
+# Must match AUTOSTAT_INTERNAL_API_KEY on AutoStat backend
 
 AUTOSTAT_API_KEY: str = "autostatprep-secret-2026"
 
-# Timeout for API requests (seconds)
-
-AUTOSTAT_API_TIMEOUT: int = 30
+AUTOSTAT_API_TIMEOUT: int = 30  # seconds
 
 def get_dataset_dir(user_id: str, dataset_id: str) -> Path:
 """
