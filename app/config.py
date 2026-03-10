@@ -2,7 +2,7 @@ from pathlib import Path
 
 # Repository root — two levels up from app/config.py
 
-BASE_DIR: Path = Path(**file**).resolve().parent.parent
+BASE_DIR: Path = Path(__file__).resolve().parent.parent
 
 STORAGE_DIR: Path = BASE_DIR / "storage"
 
@@ -44,12 +44,10 @@ AUTOSTAT_API_KEY: str = "autostatprep-secret-2026"
 
 AUTOSTAT_API_TIMEOUT: int = 30  # seconds
 
-def get_dataset_dir(user_id: str, dataset_id: str) -> Path:
-"""
-Return the per-dataset storage directory:
 
-```
-storage/users/{user_id}/datasets/{dataset_id}/
-"""
-return USERS_STORAGE_DIR / user_id / "datasets" / dataset_id
-```
+def get_dataset_dir(user_id: str, dataset_id: str) -> Path:
+    """
+    Return the per-dataset storage directory:
+    storage/users/{user_id}/datasets/{dataset_id}/
+    """
+    return USERS_STORAGE_DIR / user_id / "datasets" / dataset_id
